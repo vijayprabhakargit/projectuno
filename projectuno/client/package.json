@@ -1,0 +1,17 @@
+{
+  "name": "uno-client",
+  "version": "1.0.0",
+  "description": "UNO Game Client with Retro Graphics",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.2",
+    "vite": "^5.0.0"
+  }
+}

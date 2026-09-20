@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UNO Classic - Retro Edition</title>
+  <link rel="stylesheet" href="/src/styles/game.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen active">
+      <div class="retro-title">
+        <h1 class="pixel-title">UNO</h1>
+        <p class="pixel-subtitle">CLASSIC EDITION</p>
+        <div class="loading-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+      <div class="lobby-container">
+        <div class="lobby-header">
+          <h1 class="pixel-title small">UNO</h1>
+          <p class="pixel-subtitle small">CLASSIC</p>
+        </div>
+        
+        <div class="lobby-tabs">
+          <button class="tab-btn active" data-tab="create">Create Room</button>
+          <button class="tab-btn" data-tab="join">Join Room</button>
+        </div>
+
+        <!-- Create Room Tab -->
+        <div id="tab-create" class="tab-content active">
+          <div class="input-group">
+            <label>Your Name</label>
+            <input type="text" id="create-name" placeholder="Enter your name" maxlength="20" />
+          </div>
+          <button id="btn-create-room" class="retro-btn primary">CREATE ROOM</button>
+          <div id="create-result" class="result-box hidden">
+            <p>Room Code: <span id="room-code-display" class="room-code">----</span></p>
+            <p class="share-hint">Share this code with friends!</p>
+          </div>
+        </div>
+
+        <!-- Join Room Tab -->
+        <div id="tab-join" class="tab-content">
+          <div class="input-group">
+            <label>Your Name</label>
+            <input type="text" id="join-name" placeholder="Enter your name" maxlength="20" />
+          </div>
+          <div class="input-group">
+            <label>Room Code</label>
+            <input type="text" id="join-code" placeholder="Enter 4-letter code" maxlength="4" class="code-input" />
+          </div>
+          <button id="btn-join-room" class="retro-btn secondary">JOIN ROOM</button>
+        </div>
+
+        <div id="lobby-error" class="error-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- Room Screen (Waiting Room) -->
+    <div id="room-screen" class="screen">
+      <div class="room-container">
+        <div class="room-header">
+          <h2 class="pixel-title tiny">ROOM</h2>
+          <div class="room-code-box">
+            <span>Code: </span><span id="room-code-header" class="room-code">----</span>
+          </div>
+        </div>
+
+        <div class="players-list">
+          <h3>Players (<span id="player-count">0</span>/10)</h3>
+          <div id="players-container" class="players-grid"></div>
+        </div>
+
+        <div class="room-actions">
+          <button id="btn-ready" class="retro-btn secondary">READY</button>
+          <button id="btn-start-game" class="retro-btn primary hidden">START GAME</button>
+          <button id="btn-leave-room" class="retro-btn danger">LEAVE</button>
+        </div>
+
+        <div id="room-error" class="error-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+      <canvas id="game-canvas"></canvas>
+      
+      <!-- Color Picker Modal (for Wild cards) -->
+      <div id="color-picker-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3>CHOOSE COLOR</h3>
+          <div class="color-buttons">
+            <button class="color-btn red" data-color="Red">RED</button>
+            <button class="color-btn blue" data-color="Blue">BLUE</button>
+            <button class="color-btn green" data-color="Green">GREEN</button>
+            <button class="color-btn yellow" data-color="Yellow">YELLOW</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Over Modal -->
+      <div id="gameover-modal" class="modal hidden">
+        <div class="modal-content">
+          <h2 id="gameover-title">GAME OVER!</h2>
+          <p id="gameover-winner"></p>
+          <button id="btn-play-again" class="retro-btn primary">PLAY AGAIN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
