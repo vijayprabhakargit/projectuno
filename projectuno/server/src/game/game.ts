@@ -259,8 +259,13 @@ export class UnoGame {
         break;
       }
       
-      case 'Wild Draw Four': {
-        // Effect applied after color choice
+            case 'Wild Draw Four': {
+        // Apply draw effect when color was chosen inline (via playCard with chosenColor).
+        // When the player chooses color later via chooseColor(), the draw effect is handled there
+        // and `waitingForColorChoice` remains true here, so we skip it to avoid double-drawing.
+        if (!this.state.waitingForColorChoice) {
+          this.applyDrawEffect(4);
+        }
         this.state.message = 'Wild Draw Four! Choose a color.';
         break;
       }
