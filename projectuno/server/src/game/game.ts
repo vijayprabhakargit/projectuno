@@ -1,4 +1,4 @@
-import { Card, CardColor, CardType, GameState, Player } from '../../shared/types';
+import { Card, CardColor, CardType, GameState, Player } from '../../../shared/types';
 import { 
   createDeck, shuffleDeck, dealCards, drawCard, 
   isCardPlayable, canPlayWildDrawFour, getCardScore 
@@ -9,7 +9,7 @@ export class UnoGame {
   private playerIds: string[];
 
   constructor(playerNames: { id: string; name: string }[]) {
-    this.playerIds = playerNames.map(p => p.id);
+    this.playerIds = playerNames.map((p: { id: string; name: string }) => p.id);
     
     // Create and shuffle deck
     let deck = shuffleDeck(createDeck());
@@ -42,7 +42,7 @@ export class UnoGame {
     const discardPile: Card[] = [firstCard];
 
     this.state = {
-      players: playerNames.map((p, i) => ({
+      players: playerNames.map((p: { id: string; name: string }, i: number) => ({
         id: p.id,
         name: p.name,
         hand: hands[i],
@@ -70,7 +70,7 @@ export class UnoGame {
 
   getPlayerState(playerId: string): { publicState: GameState; hand: Card[] } {
     // Return a sanitized state for the player (with their own hand)
-    const player = this.state.players.find(p => p.id === playerId);
+    const player = this.state.players.find((p: Player) => p.id === playerId);
     return {
       publicState: this.state,
       hand: player?.hand || []
@@ -91,10 +91,10 @@ export class UnoGame {
       return { success: false, message: 'Waiting for color choice!' };
     }
 
-    const player = this.state.players.find(p => p.id === playerId);
+    const player = this.state.players.find((p: Player) => p.id === playerId);
     if (!player) return { success: false, message: 'Player not found!' };
 
-    const cardIndex = player.hand.findIndex(c => c.id === cardId);
+    const cardIndex = player.hand.findIndex((c: Card) => c.id === cardId);
     if (cardIndex === -1) return { success: false, message: 'Card not in hand!' };
 
     const card = player.hand[cardIndex];
@@ -157,7 +157,7 @@ export class UnoGame {
       return { success: false, message: 'Waiting for color choice!' };
     }
 
-    const player = this.state.players.find(p => p.id === playerId);
+    const player = this.state.players.find((p: Player) => p.id === playerId);
     if (!player) return { success: false, message: 'Player not found!' };
 
     const { drawnCards, newDeck, newDiscardPile } = drawCard(
@@ -212,7 +212,7 @@ export class UnoGame {
   }
 
   callUno(playerId: string): { success: boolean; message: string } {
-    const player = this.state.players.find(p => p.id === playerId);
+    const player = this.state.players.find((p: Player) => p.id === playerId);
     if (player && player.hand.length === 1) {
       this.state.unoCalled = true;
       this.state.message = `${player.name} called UNO!`;
@@ -330,7 +330,7 @@ export class UnoGame {
   }
 
   calculateScore(): { winner: string; scores: Record<string, number> } {
-    const winner = this.state.players.find(p => p.id === this.state.winner);
+    const winner = this.state.players.find((p: Player) => p.id === this.state.winner);
     if (!winner) return { winner: '', scores: {} };
 
     let totalScore = 0;
@@ -338,7 +338,7 @@ export class UnoGame {
 
     for (const player of this.state.players) {
       if (player.id !== this.state.winner) {
-        const handScore = player.hand.reduce((sum, card) => sum + getCardScore(card), 0);
+        const handScore = player.hand.reduce((sum: number, card: Card) => sum + getCardScore(card), 0);
         totalScore += handScore;
         scores[player.id] = handScore;
       }

@@ -75,11 +75,17 @@
         </div>
 
         <div class="players-list">
-          <h3>Players (<span id="player-count">0</span>/10)</h3>
-          <div id="players-container" class="players-grid"></div>
-        </div>
+                  <h3>Players (<span id="player-count">0</span>/10)</h3>
+                  <div id="players-container" class="players-grid"></div>
+                </div>
 
-        <div class="room-actions">
+                <!-- Scoreboard -->
+                <div id="scoreboard-section" class="scoreboard hidden">
+                  <h3 class="scoreboard-title">🏆 SCORES</h3>
+                  <div id="scores-container" class="scores-grid"></div>
+                </div>
+
+                <div class="room-actions">
           <button id="btn-ready" class="retro-btn secondary">READY</button>
           <button id="btn-start-game" class="retro-btn primary hidden">START GAME</button>
           <button id="btn-leave-room" class="retro-btn danger">LEAVE</button>

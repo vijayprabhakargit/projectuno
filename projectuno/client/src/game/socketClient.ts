@@ -14,7 +14,18 @@ export class SocketClient {
 
     this.socket.on('connect', () => {
       console.log('Connected to server');
-      this.emit('client:connected', this.socket?.id);
+      // Directly notify local listeners instead of emitting to server
+      const id = this.socket?.id;
+      const listeners = this.eventListeners.get('client:connected');
+      if (listeners) {
+        listeners.forEach(callback => {
+          try {
+            callback(id);
+          } catch (err) {
+            console.error(`Error in listener for client:connected:`, err);
+          }
+        });
+      }
     });
 
     this.socket.on('disconnect', () => {
@@ -83,8 +94,12 @@ export class SocketClient {
   }
 
   passTurn(): void {
-    this.socket?.emit('game:pass_turn');
-  }
+      this.socket?.emit('game:pass_turn');
+    }
+
+    returnToLobby(): void {
+      this.socket?.emit('room:return_to_lobby');
+    }
 
   // Event registration
   on(event: string, callback: EventCallback): () => void {
@@ -92,7 +107,7 @@ export class SocketClient {
       this.eventListeners.set(event, new Set());
     }
     this.eventListeners.get(event)!.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const listeners = this.eventListeners.get(event);

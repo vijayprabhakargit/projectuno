@@ -62,6 +62,10 @@ const btnStartGame = $('btn-start-game');
 const btnLeaveRoom = $('btn-leave-room');
 const roomError = $('room-error');
 
+// Scoreboard
+const scoreboardSection = $('scoreboard-section');
+const scoresContainer = $('scores-container');
+
 // Game
 const gameScreen = $('game-screen');
 
@@ -121,7 +125,7 @@ function showLobbyError(msg: string): void {
 btnReady.addEventListener('click', () => {
   isReady = !isReady;
   socketClient.setReady(isReady);
-  btnReady.textContent = isReady ? 'NOT READY' : 'READY';
+  btnReady.textContent = isReady ? 'READY' : 'NOT READY';
   btnReady.classList.toggle('secondary', !isReady);
   btnReady.classList.toggle('primary', isReady);
 });
@@ -150,6 +154,7 @@ function updatePlayersList(players: any[]): void {
   for (const player of players) {
     const card = document.createElement('div');
     card.className = 'player-card';
+    card.id = `player-${player.id}`;
     
     const nameSpan = document.createElement('span');
     nameSpan.className = 'player-name';
@@ -211,6 +216,77 @@ socketClient.on('room:joined', (roomId: string, players: any[]) => {
   // Show room screen
   showScreen('room-screen');
 });
+
+// Handle scores update
+socketClient.on('room:scores_update', (scores: Record<string, number>) => {
+  updateScoresBoard(scores);
+});
+
+// Handle return to lobby after game
+socketClient.on('room:returned_to_lobby', (players: any[], scores: Record<string, number>) => {
+  // Reset state
+  isReady = false;
+  currentRoomId = currentRoomId; // keep room id
+  // Stop game UI
+  if (gameUI) {
+    gameUI.stop();
+    gameUI = null;
+  }
+  // Update players list
+  updatePlayersList(players);
+  
+  // Check if I'm admin
+  const me = players.find(p => p.id === myPlayerId);
+  isAdmin = me?.isAdmin || false;
+  
+  // Update scores
+  updateScoresBoard(scores);
+  
+  // Reset ready button
+  btnReady.textContent = 'READY';
+  btnReady.classList.remove('primary');
+  btnReady.classList.add('secondary');
+  
+  // Show room screen
+  showScreen('room-screen');
+});
+
+function updateScoresBoard(scores: Record<string, number>): void {
+  const section = scoreboardSection;
+  const container = scoresContainer;
+  container.innerHTML = '';
+  
+  const entries = Object.entries(scores);
+  if (entries.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+  
+  section.classList.remove('hidden');
+  
+  // Sort by wins descending
+  entries.sort((a, b) => b[1] - a[1]);
+  
+  for (const [playerId, wins] of entries) {
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'score-name';
+    // Try to find the player name
+    const playerCard = document.getElementById(`player-${playerId}`);
+    const playerName = playerCard?.querySelector('.player-name')?.textContent || playerId.substring(0, 8);
+    nameSpan.textContent = playerName;
+    
+    const winsSpan = document.createElement('span');
+    winsSpan.className = 'score-wins';
+    winsSpan.textContent = `${wins} win${wins !== 1 ? 's' : ''}`;
+    
+    row.appendChild(nameSpan);
+    row.appendChild(winsSpan);
+    container.appendChild(row);
+  }
+}
 
 socketClient.on('room:player_joined', (player: any) => {
   // Add player to list

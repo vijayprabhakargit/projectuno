@@ -42,6 +42,7 @@ export interface Room {
   players: PlayerRoomInfo[];
   gameState: GameState | null;
   phase: 'lobby' | 'game';
+  scores: Record<string, number>;
 }
 
 export interface PlayerRoomInfo {

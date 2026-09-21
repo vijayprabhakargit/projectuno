@@ -364,12 +364,12 @@ export class GameUI {
       ctx.textAlign = 'center';
       
       if (this.isMyTurn) {
-        ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 20);
+              ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
         
-        // Draw button hints
-        ctx.fillStyle = '#7F8C8D';
-        ctx.font = '7px "Press Start 2P", monospace';
-        ctx.fillText('[Click card to play] [Press D to draw]', w / 2, this.screenHeight - 8);
+              // Draw button hints
+              ctx.fillStyle = '#7F8C8D';
+              ctx.font = '7px "Press Start 2P", monospace';
+              ctx.fillText('[Click card to play] [Press D to draw]', w / 2, this.screenHeight - 28);
       }
     }
   }
@@ -419,26 +419,22 @@ export class GameUI {
     const startX = Math.max(10, (w - totalCardsWidth) / 2);
     const cardY = h - this.cardHeight - 60;
     
-    for (let i = 0; i < this.myHand.length; i++) {
+        for (let i = 0; i < this.myHand.length; i++) {
       const cx = startX + i * (this.cardWidth + 6);
       const cy = i === this.selectedCardIndex ? cardY - 15 : cardY;
       
       if (clickX >= cx && clickX <= cx + this.cardWidth &&
           clickY >= cy && clickY <= cy + this.cardHeight) {
         
-        if (this.selectedCardIndex === i) {
-          // Play the card
-          const card = this.myHand[i];
-          if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
-            // Show color picker
-            this.showColorPicker(card.id);
-          } else {
-            socketClient.playCard(card.id);
-          }
-          this.selectedCardIndex = -1;
+        // Play the card immediately on click (single-click toggle)
+        const card = this.myHand[i];
+        if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
+          // Show color picker
+          this.showColorPicker(card.id);
         } else {
-          this.selectedCardIndex = i;
+          socketClient.playCard(card.id);
         }
+        this.selectedCardIndex = -1;
         this.render();
         break;
       }
@@ -465,4 +461,92 @@ export class GameUI {
   }
 
   private showColorPicker(cardId: string): void {
-    const modal = documen
+      const colors: CardColor[] = ['Red', 'Blue', 'Green', 'Yellow'];
+      const modal = document.createElement('div');
+      modal.className = 'color-picker-modal';
+      modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); display: flex; align-items: center;
+        justify-content: center; z-index: 1000;
+      `;
+
+      const container = document.createElement('div');
+      container.style.cssText = `
+        background: #1a1a2e; padding: 30px; border: 3px solid #FFD700;
+        border-radius: 10px; text-align: center;
+      `;
+
+      const title = document.createElement('div');
+      title.textContent = 'CHOOSE COLOR';
+      title.style.cssText = 'color: #FFD700; font: 12px "Press Start 2P", monospace; margin-bottom: 20px;';
+      container.appendChild(title);
+
+      const colorButtons = document.createElement('div');
+      colorButtons.style.cssText = 'display: flex; gap: 15px; justify-content: center;';
+
+      for (const color of colors) {
+        const btn = document.createElement('button');
+        btn.style.cssText = `
+          width: 60px; height: 60px; border-radius: 50%; border: 3px solid white;
+          cursor: pointer; background: ${this.getColorHex(color)};
+        `;
+        btn.addEventListener('click', () => {
+          document.body.removeChild(modal);
+          socketClient.playCard(cardId, color);
+        });
+        colorButtons.appendChild(btn);
+      }
+
+      container.appendChild(colorButtons);
+      modal.appendChild(container);
+      document.body.appendChild(modal);
+    }
+
+    stop(): void {
+      if (this.animationFrame) {
+        cancelAnimationFrame(this.animationFrame);
+        this.animationFrame = 0;
+      }
+    }
+
+    private showGameOver(winnerId: string): void {
+      const isWinner = winnerId === this.myPlayerId;
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85); display: flex; align-items: center;
+        justify-content: center; z-index: 1000;
+      `;
+
+      const container = document.createElement('div');
+      container.style.cssText = `
+        background: #1a1a2e; padding: 40px; border: 3px solid #FFD700;
+        border-radius: 10px; text-align: center;
+      `;
+
+      const title = document.createElement('div');
+      title.textContent = isWinner ? 'YOU WIN!' : 'GAME OVER';
+      title.style.cssText = `
+        color: ${isWinner ? '#2ECC71' : '#E74C3C'};
+        font: 20px "Press Start 2P", monospace; margin-bottom: 20px;
+      `;
+      container.appendChild(title);
+
+      const replayBtn = document.createElement('button');
+      replayBtn.textContent = 'BACK TO LOBBY';
+      replayBtn.style.cssText = `
+        padding: 10px 20px; font: 10px "Press Start 2P", monospace;
+        background: #FFD700; color: #000; border: none; border-radius: 5px;
+        cursor: pointer; margin-top: 10px;
+      `;
+      replayBtn.addEventListener('click', () => {
+              document.body.removeChild(modal);
+              this.stop();
+              socketClient.returnToLobby();
+            });
+      container.appendChild(replayBtn);
+
+      modal.appendChild(container);
+      document.body.appendChild(modal);
+    }
+  }

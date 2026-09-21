@@ -1,8 +1,8 @@
 import { Card, CardColor } from '../../../shared/types';
 
 // ============================================================
-// RETRO PIXEL-ART CARD RENDERER
-// Inspired by retro games like Super Mario & Aladdin
+// AUTHENTIC UNO CARD RENDERER
+// Clean UNO card look with white oval center
 // ============================================================
 
 export interface CardRenderConfig {
@@ -13,224 +13,215 @@ export interface CardRenderConfig {
   selected?: boolean;
 }
 
-const COLORS: Record<string, { fill: string; dark: string; light: string; pixel: string }> = {
-  Red: { fill: '#E74C3C', dark: '#C0392B', light: '#FF6B6B', pixel: '#A93226' },
-  Blue: { fill: '#3498DB', dark: '#2980B9', light: '#5DADE2', pixel: '#1A5276' },
-  Green: { fill: '#2ECC71', dark: '#27AE60', light: '#58D68D', pixel: '#1E8449' },
-  Yellow: { fill: '#F1C40F', dark: '#F39C12', light: '#F7DC6F', pixel: '#D4AC0D' },
-  None: { fill: '#2C3E50', dark: '#1A252F', light: '#5D6D7E', pixel: '#17202A' }
+const COLORS: Record<string, { fill: string; dark: string; light: string; border: string }> = {
+  Red:     { fill: '#E74C3C', dark: '#C0392B', light: '#FF6B6B', border: '#A93226' },
+  Blue:    { fill: '#3498DB', dark: '#2980B9', light: '#5DADE2', border: '#1A5276' },
+  Green:   { fill: '#2ECC71', dark: '#27AE60', light: '#58D68D', border: '#1E8449' },
+  Yellow:  { fill: '#F1C40F', dark: '#F39C12', light: '#F7DC6F', border: '#D4AC0D' },
+  None:    { fill: '#2C3E50', dark: '#1A252F', light: '#5D6D7E', border: '#17202A' }
 };
 
 export class CardRenderer {
   private ctx: CanvasRenderingContext2D;
-  private pixelSize: number;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
-    this.pixelSize = 2;
+  }
+
+  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   drawCardBackground(card: Card, config: CardRenderConfig): void {
     const { x, y, width, height, selected } = config;
     const ctx = this.ctx;
-    const color = card.color === 'None' ? COLORS['None'] : COLORS[card.color];
     const isWild = card.type === 'Wild' || card.type === 'Wild Draw Four';
+    const r = Math.min(width, height) * 0.12;
 
-    // Card shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(x + 4, y + 4, width, height);
+    // Shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    this.roundRect(x + 2, y + 2, width, height, r);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fill();
+    ctx.restore();
 
-    // Card background
-    const bgColor = isWild ? '#2C3E50' : color.fill;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(x, y, width, height);
-    
-    // Card border (pixel effect)
-    ctx.strokeStyle = isWild ? '#1A252F' : color.dark;
+    if (isWild) {
+      this.drawRainbowPattern(x, y, width, height, r);
+    } else {
+      const color = COLORS[card.color];
+      this.roundRect(x, y, width, height, r);
+      ctx.fillStyle = color.fill;
+      ctx.fill();
+    }
+
+    const borderColor = isWild ? '#1A252F' : COLORS[card.color].border;
+    this.roundRect(x, y, width, height, r);
+    ctx.strokeStyle = borderColor;
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, width, height);
+    ctx.stroke();
 
-    // Inner border highlight
-    ctx.strokeStyle = isWild ? '#5D6D7E' : color.light;
+    this.roundRect(x + 3, y + 3, width - 6, height - 6, r - 2);
+    ctx.strokeStyle = isWild ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(x + 3, y + 3, width - 6, height - 6);
+    ctx.stroke();
 
-    // Selection glow
     if (selected) {
+      this.roundRect(x - 2, y - 2, width + 4, height + 4, r + 2);
+      ctx.save();
       ctx.shadowColor = '#FFD700';
-      ctx.shadowBlur = 15;
+      ctx.shadowBlur = 16;
       ctx.strokeStyle = '#FFD700';
       ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, width, height);
-      ctx.shadowBlur = 0;
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
   drawCardContent(card: Card, config: CardRenderConfig): void {
     const { x, y, width, height } = config;
     const ctx = this.ctx;
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
     const isWild = card.type === 'Wild' || card.type === 'Wild Draw Four';
     const color = isWild ? COLORS['None'] : COLORS[card.color];
 
-    // If wild card, draw rainbow pattern
-    if (isWild) {
-      this.drawRainbowPattern(x, y, width, height);
-    }
-
-    // Draw card type icon/symbol
+    // White oval center
+    const ovalW = width * 0.58;
+    const ovalH = height * 0.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, ovalW / 2, ovalH / 2, 0, 0, Math.PI * 2);
+    ctx.closePath();
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${Math.floor(width * 0.35)}px 'Press Start 2P', monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.fill();
+    ctx.strokeStyle = isWild ? '#2C3E50' : color.border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Center symbol
+    const fontSize = Math.floor(ovalH * 0.5);
+    ctx.fillStyle = isWild ? '#2C3E50' : color.dark;
 
     if (card.type === 'Number' && card.value !== null) {
-      this.drawPixelNumber(centerX, centerY, card.value, width, color);
+      ctx.font = 'bold ' + fontSize + "px 'Press Start 2P', monospace";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(card.value), cx, cy + 2);
     } else {
-      this.drawActionSymbol(centerX, centerY, card.type, width, color);
+      ctx.font = 'bold ' + (fontSize * 0.6) + "px 'Press Start 2P', monospace";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const symbols: Record<string, string> = {
+        'Skip': String.fromCharCode(8856),
+        'Reverse': String.fromCharCode(10227),
+        'Draw Two': '+2',
+        'Wild': 'W',
+        'Wild Draw Four': '+4'
+      };
+      ctx.fillText(symbols[card.type] || '?', cx, cy + 2);
     }
 
-    // Top-left small indicator
+    // Top-left corner indicator
+    const smallFont = Math.floor(width * 0.15);
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${Math.floor(width * 0.15)}px 'Press Start 2P', monospace`;
+    ctx.font = 'bold ' + smallFont + "px 'Press Start 2P', monospace";
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    
     const shortText = this.getShortText(card);
-    ctx.fillText(shortText, x + 8, y + 8);
-  }
+    ctx.fillText(shortText, x + 8, y + 6);
 
-  private drawPixelNumber(cx: number, cy: number, value: number, cardWidth: number, color: { fill: string; light: string }): void {
-    const ctx = this.ctx;
-    const size = Math.floor(cardWidth * 0.4);
-    const px = this.pixelSize;
-    
-    // Draw number as pixel art
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${size}px 'Press Start 2P', monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(value), cx, cy);
+    // Bottom-right corner (inverted)
+    ctx.save();
+    ctx.translate(x + width - 8, y + height - 6);
+    ctx.rotate(Math.PI);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(shortText, 0, 0);
+    ctx.restore();
 
-    // Add colored circle behind number for number cards
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.55, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fill();
-  }
-
-  private drawActionSymbol(cx: number, cy: number, type: string, cardWidth: number, color: { fill: string; light: string }): void {
-    const ctx = this.ctx;
-    const size = Math.floor(cardWidth * 0.35);
-    
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 3;
-
-    switch (type) {
-      case 'Skip': {
-        // Draw a circle with a line through it (pixel-style)
-        ctx.beginPath();
-        ctx.arc(cx, cy, size * 0.5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.font = `${size}px 'Press Start 2P', monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('X', cx, cy);
-        break;
-      }
-      case 'Reverse': {
-        // Draw two arrows in a circle
-        ctx.beginPath();
-        ctx.arc(cx, cy, size * 0.5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.font = `${size * 0.7}px 'Press Start 2P', monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('<>', cx, cy);
-        break;
-      }
-      case 'Draw Two': {
-        ctx.font = `${size * 0.7}px 'Press Start 2P', monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('+2', cx, cy);
-        break;
-      }
-      case 'Wild': {
-        ctx.font = `${size * 0.6}px 'Press Start 2P', monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('W', cx, cy);
-        break;
-      }
-      case 'Wild Draw Four': {
-        ctx.font = `${size * 0.6}px 'Press Start 2P', monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('+4', cx, cy);
-        break;
-      }
+    // Type label at bottom
+    if (card.type !== 'Number') {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = 'bold ' + Math.floor(width * 0.1) + "px 'Press Start 2P', monospace";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      const label = card.type === 'Wild Draw Four' ? 'WILD +4' : 
+                    card.type === 'Draw Two' ? 'DRAW 2' : card.type.toUpperCase();
+      ctx.fillText(label, cx, y + height - 8);
     }
   }
 
-  private drawRainbowPattern(x: number, y: number, width: number, height: number): void {
+  private drawRainbowPattern(x: number, y: number, width: number, height: number, r: number): void {
     const ctx = this.ctx;
-    const colors = [COLORS.Red, COLORS.Blue, COLORS.Green, COLORS.Yellow];
-    const stripeHeight = height / 4;
+    const colors = [COLORS.Red.fill, COLORS.Blue.fill, COLORS.Green.fill, COLORS.Yellow.fill];
+    const stripeH = height / 4;
+
+    ctx.save();
+    this.roundRect(x, y, width, height, r);
+    ctx.clip();
 
     for (let i = 0; i < 4; i++) {
-      ctx.fillStyle = colors[i].fill;
-      ctx.globalAlpha = 0.3;
-      ctx.fillRect(x + 5, y + 5 + i * stripeHeight, width - 10, stripeHeight);
+      ctx.fillStyle = colors[i];
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(x, y + i * stripeH, width, stripeH);
     }
     ctx.globalAlpha = 1.0;
+    ctx.restore();
   }
 
   drawBackOfCard(x: number, y: number, width: number, height: number): void {
     const ctx = this.ctx;
-    
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(x + 3, y + 3, width, height);
+    const r = Math.min(width, height) * 0.12;
 
-    // Card back pattern - retro style
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    this.roundRect(x + 2, y + 2, width, height, r);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fill();
+    ctx.restore();
+
+    this.roundRect(x, y, width, height, r);
     ctx.fillStyle = '#1A5276';
-    ctx.fillRect(x, y, width, height);
-    
-    // Border
+    ctx.fill();
+    this.roundRect(x, y, width, height, r);
     ctx.strokeStyle = '#2980B9';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, width, height);
-    
-    // Diamond pattern
+    ctx.stroke();
+
+    this.roundRect(x + 3, y + 3, width - 6, height - 6, r - 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
     ctx.fillStyle = '#3498DB';
     ctx.beginPath();
-    ctx.moveTo(x + width / 2, y + 5);
-    ctx.lineTo(x + width - 5, y + height / 2);
-    ctx.lineTo(x + width / 2, y + height - 5);
-    ctx.lineTo(x + 5, y + height / 2);
+    ctx.moveTo(x + width / 2, y + 8);
+    ctx.lineTo(x + width - 8, y + height / 2);
+    ctx.lineTo(x + width / 2, y + height - 8);
+    ctx.lineTo(x + 8, y + height / 2);
     ctx.closePath();
     ctx.fill();
 
-    // UNO text on back
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${Math.floor(width * 0.2)}px 'Press Start 2P', monospace`;
+    ctx.font = 'bold ' + Math.floor(width * 0.22) + "px 'Press Start 2P', monospace";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('UNO', x + width / 2, y + height / 2);
-
-    // Corner decorations
-    const dotSize = 3;
-    for (let dx = 8; dx < width - 6; dx += 12) {
-      for (let dy = 8; dy < height - 6; dy += 12) {
-        if (dx < 20 || dx > width - 20 || dy < 20 || dy > height - 20) {
-          ctx.fillStyle = '#2980B9';
-          ctx.fillRect(x + dx, y + dy, dotSize, dotSize);
-        }
-      }
-    }
   }
 
   private getShortText(card: Card): string {
@@ -245,32 +236,20 @@ export class CardRenderer {
     }
   }
 
-  drawTurnIndicator(x: number, y: number, playerName: string, isCurrentPlayer: boolean): void {
-    const ctx = this.ctx;
-    ctx.fillStyle = isCurrentPlayer ? '#FFD700' : '#7F8C8D';
-    ctx.font = '10px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // Background
-    ctx.fillStyle = isCurrentPlayer ? 'rgba(255,215,0,0.2)' : 'rgba(127,140,141,0.2)';
-    ctx.fillRect(x - 80, y - 10, 160, 20);
-    
-    ctx.fillStyle = isCurrentPlayer ? '#FFD700' : '#BDC3C7';
-    ctx.fillText(playerName, x, y);
-  }
-
   drawDiscardPile(x: number, y: number, card: Card | null, cardWidth: number, cardHeight: number): void {
     const ctx = this.ctx;
-    
-    // Discard pile base
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.arc(x, y, cardWidth * 0.7, 0, Math.PI * 2);
+    const r = cardWidth * 0.12;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 15;
+    this.roundRect(x - cardWidth / 2, y - cardHeight / 2, cardWidth, cardHeight, r);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
     ctx.fill();
+    ctx.restore();
 
     if (card) {
-      // Draw the top card slightly offset for depth
+      this.drawCardBackground(card, { x: x - cardWidth/2 - 2, y: y - cardHeight/2 - 2, width: cardWidth, height: cardHeight });
       this.drawCardBackground(card, { x: x - cardWidth/2, y: y - cardHeight/2, width: cardWidth, height: cardHeight });
       this.drawCardContent(card, { x: x - cardWidth/2, y: y - cardHeight/2, width: cardWidth, height: cardHeight });
     }
@@ -278,19 +257,17 @@ export class CardRenderer {
 
   drawDrawPile(x: number, y: number, count: number, cardWidth: number, cardHeight: number): void {
     const ctx = this.ctx;
-    
-    // Stack of cards (show multiple layers)
-    for (let i = 0; i < Math.min(count, 5); i++) {
-      const offsetX = x - cardWidth/2 - i;
-      const offsetY = y - cardHeight/2 - i;
-      this.drawBackOfCard(offsetX, offsetY, cardWidth, cardHeight);
+
+    for (let i = 0; i < Math.min(count, 3); i++) {
+      const ox = x - cardWidth / 2 - i * 2;
+      const oy = y - cardHeight / 2 - i * 2;
+      this.drawBackOfCard(ox, oy, cardWidth, cardHeight);
     }
-    
-    // Card count
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '10px "Press Start 2P", monospace';
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '9px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${count}`, x, y + cardHeight);
+    ctx.textBaseline = 'top';
+    ctx.fillText('' + count, x, y + cardHeight / 2 + 10);
   }
 }
