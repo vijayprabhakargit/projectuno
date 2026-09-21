@@ -224,8 +224,9 @@ socketClient.on('room:scores_update', (scores: Record<string, number>) => {
 
 // Handle return to lobby after game
 socketClient.on('room:returned_to_lobby', (players: any[], scores: Record<string, number>) => {
-  // Reset state
-  isReady = false;
+  // Sync ready status from server (don't hardcode to false)
+  const me = players.find(p => p.id === myPlayerId);
+  isReady = me?.isReady || false;
   currentRoomId = currentRoomId; // keep room id
   // Stop game UI
   if (gameUI) {
@@ -236,16 +237,15 @@ socketClient.on('room:returned_to_lobby', (players: any[], scores: Record<string
   updatePlayersList(players);
   
   // Check if I'm admin
-  const me = players.find(p => p.id === myPlayerId);
   isAdmin = me?.isAdmin || false;
   
   // Update scores
   updateScoresBoard(scores);
   
-  // Reset ready button
-  btnReady.textContent = 'READY';
-  btnReady.classList.remove('primary');
-  btnReady.classList.add('secondary');
+  // Sync ready button with server state
+  btnReady.textContent = isReady ? 'READY' : 'NOT READY';
+  btnReady.classList.toggle('primary', isReady);
+  btnReady.classList.toggle('secondary', !isReady);
   
   // Show room screen
   showScreen('room-screen');

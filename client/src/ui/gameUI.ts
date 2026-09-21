@@ -20,6 +20,8 @@ export class GameUI {
   private cardWidth: number = 70;
   private cardHeight: number = 100;
   private animationFrame: number = 0;
+  private stateErrorMessage: string | null = null;
+  private stateErrorTimer: number = 0;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -36,8 +38,16 @@ export class GameUI {
     document.addEventListener('keydown', (e) => this.handleKeyDown(e));
     
     // Register socket events
-    this.registerSocketEvents();
-  }
+        this.registerSocketEvents();
+      }
+
+      private showError(message: string): void {
+        // Flash error message on the canvas
+        this.stateErrorMessage = message;
+        this.stateErrorTimer = Date.now();
+        setTimeout(() => { this.stateErrorMessage = null; }, 3000);
+        this.render();
+      }
 
   private resizeCanvas(): void {
     const container = this.canvas.parentElement!;
@@ -67,8 +77,9 @@ export class GameUI {
     });
 
     socketClient.on('game:error', (message: string) => {
-      console.warn('Game error:', message);
-    });
+          console.warn('Game error:', message);
+          this.showError(message);
+        });
   }
 
   private findMyPlayerIndex(): number {
@@ -334,21 +345,34 @@ export class GameUI {
   }
 
   private drawGameInfo(): void {
-    const ctx = this.ctx;
-    const w = this.screenWidth;
+      const ctx = this.ctx;
+      const w = this.screenWidth;
     
-    // Message display
-    if (this.gameState?.message) {
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(w / 2 - 200, 20, 400, 30);
+      // Error message display (flashing)
+      if (this.stateErrorMessage) {
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+        ctx.fillRect(w / 2 - 220, 20, 440, 35);
       
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '8px "Press Start 2P", monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(this.gameState.message, w / 2, 35);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.stateErrorMessage, w / 2, 37);
+      }
+    
+      // Message display
+      if (this.gameState?.message) {
+        const msgY = this.stateErrorMessage ? 60 : 20;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(w / 2 - 200, msgY, 400, 30);
+      
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '8px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.gameState.message, w / 2, msgY + 15);
+      }
     }
-  }
 
   private drawTurnInfo(): void {
     if (!this.gameState) return;
@@ -375,25 +399,30 @@ export class GameUI {
   }
 
   private isCardPlayable(card: Card): boolean {
-    if (!this.gameState?.currentCard) return true;
-    const currentColor = this.gameState.currentColor;
-    const currentCard = this.gameState.currentCard;
+      if (!this.gameState?.currentCard) return true;
+      const currentColor = this.gameState.currentColor;
+      const currentCard = this.gameState.currentCard;
     
-    // Wild cards are always playable (but Wild Draw Four has restrictions)
-    if (card.type === 'Wild') return true;
-    if (card.type === 'Wild Draw Four') return true; // Allow, server validates
+      // Wild is always playable
+      if (card.type === 'Wild') return true;
     
-    // Same color
-    if (card.color === currentColor) return true;
+      // Wild Draw Four: only playable when player has no card matching the current color
+      if (card.type === 'Wild Draw Four') {
+        if (currentColor === 'None') return true;
+        return !this.myHand.some(c => c.color === currentColor);
+      }
     
-    // Same number
-    if (card.type === 'Number' && currentCard.type === 'Number' && card.value === currentCard.value) return true;
+      // Same color
+      if (card.color === currentColor) return true;
     
-    // Same action
-    if (card.type !== 'Number' && card.type === currentCard.type) return true;
+      // Same number
+      if (card.type === 'Number' && currentCard.type === 'Number' && card.value === currentCard.value) return true;
     
-    return false;
-  }
+      // Same action
+      if (card.type !== 'Number' && card.type === currentCard.type) return true;
+    
+      return false;
+    }
 
   private getColorHex(color: CardColor): string {
     switch (color) {

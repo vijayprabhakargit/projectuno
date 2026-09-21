@@ -140,20 +140,24 @@ export class RoomManager {
     }
 
     resetRoomToLobby(roomId: string): { success: boolean; message: string } {
-      const room = this.rooms.get(roomId);
-      if (!room) return { success: false, message: 'Room not found!' };
+          const room = this.rooms.get(roomId);
+          if (!room) return { success: false, message: 'Room not found!' };
     
-      room.phase = 'lobby';
-      room.gameState = null;
-      this.gameInstances.delete(roomId);
+          // Only reset game state if the room was in game phase (first time only)
+          if (room.phase === 'game') {
+            room.phase = 'lobby';
+            room.gameState = null;
+            this.gameInstances.delete(roomId);
+        
+            // Reset ready status once when transitioning from game to lobby
+            for (const player of room.players) {
+              player.isReady = false;
+            }
+          }
+          // Subsequent calls from other players: preserve existing ready statuses
     
-      // Reset all players' ready status
-      for (const player of room.players) {
-        player.isReady = false;
-      }
-    
-      return { success: true, message: 'Room reset to lobby!' };
-    }
+          return { success: true, message: 'Room reset to lobby!' };
+        }
 
   getRoom(roomId: string): Room | undefined {
     return this.rooms.get(roomId);
