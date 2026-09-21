@@ -25,43 +25,98 @@ export class UnoGame {
       hands.push(hand);
     }
 
-    // Create initial discard pile (first non-action-safe card)
-    let firstCard: Card | undefined;
-    let attempts = 0;
-    do {
-      firstCard = deck.pop();
-      attempts++;
-      if (attempts > 50) break; // Safety
-    } while (firstCard && (firstCard.type !== 'Number' || firstCard.color === 'None'));
+    // Create initial discard pile (reveal top card of draw pile)
+        let firstCard: Card | undefined;
+        let wildDrawFourRetries = 0;
     
-    if (!firstCard) {
-      // Fallback: just use any card
-      firstCard = deck.pop() || { id: 'fallback', type: 'Number', color: 'Red', value: 0 };
-    }
+        // If we draw a Wild Draw Four as first card, return it to deck and retry
+        do {
+          firstCard = deck.pop();
+          if (firstCard && firstCard.type === 'Wild Draw Four') {
+            // Wild Draw Four cannot be the initial discard; shuffle it back
+            deck = shuffleDeck([...deck, firstCard]);
+            wildDrawFourRetries++;
+            firstCard = undefined;
+            if (wildDrawFourRetries > 5) break; // Safety
+          }
+        } while (!firstCard);
+    
+        if (!firstCard) {
+          firstCard = deck.pop() || { id: 'fallback', type: 'Number', color: 'Red', value: 0 };
+        }
 
-    const discardPile: Card[] = [firstCard];
+        const discardPile: Card[] = [firstCard];
+        let initialColor: CardColor = firstCard.color as CardColor;
+        let startingPlayerIndex = 0; // Player to the left of dealer (index 0)
+        let initialDirection: 1 | -1 = 1;
+        let initialMessage = 'Game started!';
+
+        // Apply first card effects
+        switch (firstCard.type) {
+          case 'Skip': {
+            // Skip the first player (player to left of dealer)
+            startingPlayerIndex = 1 % playerNames.length;
+            initialMessage = 'First card is Skip! First player skipped.';
+            break;
+          }
+          case 'Reverse': {
+            // Reverse direction, dealer starts
+            initialDirection = -1;
+            startingPlayerIndex = 0; // Dealer (index 0) starts
+            initialMessage = 'First card is Reverse! Direction reversed, dealer starts.';
+            break;
+          }
+          case 'Draw Two': {
+                  // First player draws 2 and loses turn
+                  const firstPlayerHand = hands[0];
+                  for (let i = 0; i < 2; i++) {
+                    const drawn = deck.pop();
+                    if (drawn) firstPlayerHand.push(drawn);
+                  }
+                  // Next player (index 1) starts
+                  startingPlayerIndex = 1 % playerNames.length;
+                  initialMessage = 'First card is Draw Two! First player drew 2 and is skipped.';
+                  break;
+                }
+          case 'Wild': {
+            // Player to left of dealer chooses starting color
+            initialColor = 'None' as CardColor;
+            initialMessage = 'First card is Wild! Choose a starting color.';
+            // We need to prompt for color choice. Set waitingForColorChoice.
+            // Since constructor can't wait for input, set initial color to None
+            // and the first player will need to choose via the UI
+            break;
+          }
+          case 'Wild Draw Four': {
+            // Should not happen due to the retry loop above, but handle as fallback
+            initialMessage = 'First card is Wild Draw Four! (Should have been reshuffled)';
+            break;
+          }
+        }
 
     this.state = {
-      players: playerNames.map((p: { id: string; name: string }, i: number) => ({
-        id: p.id,
-        name: p.name,
-        hand: hands[i],
-        isHuman: true,
-        isReady: true
-      })),
-      currentPlayerIndex: Math.floor(Math.random() * playerNames.length),
-      direction: 1,
-      drawPile: deck,
-      discardPile: discardPile,
-      currentColor: firstCard.color as CardColor,
-      currentCard: firstCard,
-      winner: null,
-      gameStarted: true,
-      unoCalled: false,
-      waitingForColorChoice: false,
-      pendingDraw: 0,
-      message: 'Game started!'
-    };
+          players: playerNames.map((p: { id: string; name: string }, i: number) => ({
+            id: p.id,
+            name: p.name,
+            hand: hands[i],
+            isHuman: true,
+            isReady: true
+          })),
+          currentPlayerIndex: startingPlayerIndex,
+          direction: initialDirection,
+          drawPile: deck,
+          discardPile: discardPile,
+          currentColor: initialColor,
+          currentCard: firstCard,
+          winner: null,
+          gameStarted: true,
+          unoCalled: false,
+                unoPenaltyWindow: null,
+                drawnCardId: null,
+                waitingForColorChoice: firstCard.type === 'Wild',
+          pendingDraw: 0,
+          message: initialMessage
+        };
   }
 
   getState(): GameState {
@@ -98,10 +153,15 @@ export class UnoGame {
     if (cardIndex === -1) return { success: false, message: 'Card not in hand!' };
 
     const card = player.hand[cardIndex];
-    const currentColor = this.state.currentColor;
-    const currentCard = this.state.currentCard;
+        const currentColor = this.state.currentColor;
+        const currentCard = this.state.currentCard;
 
-    // Check if card is playable
+        // After drawing this turn, the player can only play the drawn card
+        if (this.state.drawnCardId && card.id !== this.state.drawnCardId) {
+          return { success: false, message: 'You can only play the card you just drew!' };
+        }
+
+        // Check if card is playable
     if (card.type === 'Wild Draw Four') {
       if (!canPlayWildDrawFour(player.hand, currentColor)) {
         return { success: false, message: 'You must have no card matching the current color to play Wild Draw Four!' };
@@ -118,32 +178,55 @@ export class UnoGame {
     this.state.currentCard = card;
 
     // Handle wild cards
-    if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
-      if (chosenColor) {
-        this.state.currentColor = chosenColor;
-      } else {
-        this.state.waitingForColorChoice = true;
-        this.state.message = 'Choose a color!';
-        return { success: true, message: 'Played wild card, choose color!' };
-      }
-    } else {
-      this.state.currentColor = card.color;
-    }
+        if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
+          if (chosenColor) {
+            this.state.currentColor = chosenColor;
+          } else {
+            this.state.waitingForColorChoice = true;
+            this.state.message = 'Choose a color!';
+            // Clear drawn card restriction since the wild card was played
+            this.state.drawnCardId = null;
+            return { success: true, message: 'Played wild card, choose color!' };
+          }
+        } else {
+          this.state.currentColor = card.color;
+        }
+
+        // Clear drawn card restriction since the card was successfully played
+        this.state.drawnCardId = null;
 
     // Apply card effects
-    this.applyCardEffect(card);
+        this.applyCardEffect(card);
 
-    // Check for winner
-    if (player.hand.length === 0) {
-      this.state.winner = playerId;
-      this.state.message = `${player.name} wins!`;
-      return { success: true, message: 'You win!' };
-    }
+        // Check for winner
+        if (player.hand.length === 0) {
+          this.state.winner = playerId;
+          this.state.unoPenaltyWindow = null;
+          this.state.message = `${player.name} wins!`;
+          return { success: true, message: 'You win!' };
+        }
 
-    // Move to next turn if not waiting for color
-    if (!this.state.waitingForColorChoice) {
-      this.advanceTurn();
-    }
+        // Track UNO: if player has 1 card, they should call UNO
+        // Set penalty window if they haven't called it yet
+        if (player.hand.length === 1 && !this.state.unoCalled) {
+          this.state.unoPenaltyWindow = playerId;
+        } else if (player.hand.length === 1 && this.state.unoCalled) {
+          // Already called UNO, all good
+          this.state.unoPenaltyWindow = null;
+        } else {
+          // Player has more than 1 card, no UNO concern
+          this.state.unoPenaltyWindow = null;
+        }
+
+    // Action cards in 2-player: the same player goes again
+        const ACTION_CARDS_TWO_PLAYER: CardType[] = ['Skip', 'Reverse', 'Draw Two', 'Wild Draw Four'];
+        const isTwoPlayerActionCard = this.state.players.length === 2 && ACTION_CARDS_TWO_PLAYER.includes(card.type);
+        const skipAdvance = isTwoPlayerActionCard && !this.state.waitingForColorChoice;
+
+        // Move to next turn if not waiting for color and not a 2-player action card effect
+        if (!this.state.waitingForColorChoice && !skipAdvance) {
+          this.advanceTurn();
+        }
 
     return { success: true, message: 'Card played!' };
   }
@@ -170,56 +253,112 @@ export class UnoGame {
     this.state.discardPile = newDiscardPile;
 
     if (drawnCards.length > 0) {
-      const drawnCard = drawnCards[0];
-      player.hand.push(drawnCard);
+          const drawnCard = drawnCards[0];
+          player.hand.push(drawnCard);
+          this.state.drawnCardId = drawnCard.id;
 
-      // Check if drawn card is playable
-      if (isCardPlayable(drawnCard, this.state.currentColor, this.state.currentCard)) {
-        this.state.message = 'Drew a card! You can play it if you want.';
-        return { success: true, message: 'Drew a playable card!', drawnCards };
-      } else {
-        this.state.message = 'Drew a card. Turn passes.';
-      }
-    } else {
-      this.state.message = 'No cards to draw!';
-    }
+          // Check if drawn card is playable
+          if (isCardPlayable(drawnCard, this.state.currentColor, this.state.currentCard)) {
+            this.state.message = 'Drew a card! You can play it if you want.';
+            return { success: true, message: 'Drew a playable card!', drawnCards };
+          } else {
+            this.state.message = 'Drew a card. Turn passes.';
+          }
+        } else {
+          this.state.message = 'No cards to draw!';
+        }
 
-    this.advanceTurn();
+        this.state.drawnCardId = null;
+        this.advanceTurn();
     return { success: true, message: 'Drew a card. Turn passed.', drawnCards };
   }
 
   chooseColor(playerId: string, color: CardColor): { success: boolean; message: string } {
-    if (!this.isPlayerTurn(playerId)) {
-      return { success: false, message: 'Not your turn!' };
-    }
+      if (!this.isPlayerTurn(playerId)) {
+        return { success: false, message: 'Not your turn!' };
+      }
 
-    if (!this.state.waitingForColorChoice) {
-      return { success: false, message: 'No color choice pending!' };
-    }
+      if (!this.state.waitingForColorChoice) {
+        return { success: false, message: 'No color choice pending!' };
+      }
 
-    this.state.currentColor = color;
-    this.state.waitingForColorChoice = false;
-    this.state.message = `Color changed to ${color}!`;
+      this.state.currentColor = color;
+      this.state.waitingForColorChoice = false;
+      this.state.message = `Color changed to ${color}!`;
     
-    // Apply Wild Draw Four effect after color choice
-    const lastCard = this.state.currentCard;
-    if (lastCard && lastCard.type === 'Wild Draw Four') {
-      this.applyDrawEffect(4);
-    }
+      // Apply Wild Draw Four effect after color choice
+      const lastCard = this.state.currentCard;
+      const playedWildDrawFour = lastCard && lastCard.type === 'Wild Draw Four';
+      if (playedWildDrawFour) {
+        this.applyDrawEffect(4);
+      }
 
-    this.advanceTurn();
-    return { success: true, message: `Color changed to ${color}!` };
-  }
+      // Check for winner: the player who played the wild card (still their turn)
+            // may have emptied their hand
+            const player = this.state.players.find((p: Player) => p.id === playerId);
+            if (player && player.hand.length === 0) {
+              this.state.winner = playerId;
+              this.state.message = `${player.name} wins!`;
+              return { success: true, message: 'You win!' };
+            }
+
+            // In 2-player mode with Wild Draw Four, the same player goes again
+            // (next player drew 4 and lost their turn)
+            const isTwoPlayerWildDrawFour = this.state.players.length === 2 && playedWildDrawFour;
+            if (!isTwoPlayerWildDrawFour) {
+              this.advanceTurn();
+            }
+            return { success: true, message: `Color changed to ${color}!` };
+    }
 
   callUno(playerId: string): { success: boolean; message: string } {
-    const player = this.state.players.find((p: Player) => p.id === playerId);
-    if (player && player.hand.length === 1) {
-      this.state.unoCalled = true;
-      this.state.message = `${player.name} called UNO!`;
-      return { success: true, message: 'UNO called!' };
+      const player = this.state.players.find((p: Player) => p.id === playerId);
+      if (!player) return { success: false, message: 'Player not found!' };
+    
+      if (player.hand.length === 1) {
+        this.state.unoCalled = true;
+        this.state.unoPenaltyWindow = null; // Closed safely
+        this.state.message = `${player.name} called UNO!`;
+        return { success: true, message: 'UNO called!' };
+      }
+    
+      if (player.hand.length === 0) {
+        return { success: false, message: 'You already won!' };
+      }
+    
+      return { success: false, message: 'You can only call UNO with 1 card!' };
     }
-    return { success: false, message: 'Cannot call UNO!' };
-  }
+
+    catchUno(catcherId: string): { success: boolean; message: string } {
+      // Only the player who hasn't called UNO (in the penalty window) can be caught
+      if (!this.state.unoPenaltyWindow) {
+        return { success: false, message: 'No one to catch!' };
+      }
+
+      const offenderId = this.state.unoPenaltyWindow;
+      const offender = this.state.players.find((p: Player) => p.id === offenderId);
+      if (!offender) return { success: false, message: 'Offender not found!' };
+
+      // Draw 2 cards as penalty
+      const { drawnCards, newDeck, newDiscardPile } = drawCard(
+        this.state.drawPile,
+        this.state.discardPile,
+        2
+      );
+      this.state.drawPile = newDeck;
+      this.state.discardPile = newDiscardPile;
+
+      if (drawnCards.length > 0) {
+        offender.hand.push(...drawnCards);
+      }
+
+      const catcher = this.state.players.find((p: Player) => p.id === catcherId);
+      this.state.unoPenaltyWindow = null;
+      this.state.unoCalled = false;
+      this.state.message = `${offender.name} forgot to call UNO and drew ${drawnCards.length} cards!`;
+    
+      return { success: true, message: `Caught! ${offender.name} draws 2 cards.` };
+    }
 
   private applyCardEffect(card: Card): void {
     const numPlayers = this.state.players.length;
@@ -317,7 +456,9 @@ export class UnoGame {
     // This is handled in applyCardEffect already
     
     this.state.currentPlayerIndex = nextIndex;
-    this.state.unoCalled = false;
+        this.state.unoCalled = false;
+        this.state.unoPenaltyWindow = null; // Catch window closes when next turn starts
+        this.state.drawnCardId = null; // Clear drawn-card restriction
     
     // Check if next player can play
     const nextPlayer = this.state.players[nextIndex];

@@ -253,20 +253,49 @@ io.on('connection', (socket) => {
   });
 
   // Call UNO
-  socket.on('game:call_uno', () => {
-    if (!currentRoomId) return;
+    socket.on('game:call_uno', () => {
+      if (!currentRoomId) return;
     
-    const room = roomManager.getRoom(currentRoomId);
-    if (!room || !room.gameState || room.phase !== 'game') return;
+      const room = roomManager.getRoom(currentRoomId);
+      if (!room || !room.gameState || room.phase !== 'game') return;
 
-    const game = roomManager.getGame(currentRoomId);
-        if (!game) return;
+      const game = roomManager.getGame(currentRoomId);
+          if (!game) return;
 
-    const result = game.callUno(socket.id);
-    if (result.success) {
-      io.to(currentRoomId).emit('game:uno_called', socket.id);
-    }
-  });
+      const result = game.callUno(socket.id);
+      if (result.success) {
+        io.to(currentRoomId).emit('game:uno_called', socket.id);
+      } else {
+        socket.emit('game:error', result.message);
+      }
+    });
+
+    // Catch a player who forgot to call UNO
+    socket.on('game:catch_uno', () => {
+      if (!currentRoomId) return;
+    
+      const room = roomManager.getRoom(currentRoomId);
+      if (!room || !room.gameState || room.phase !== 'game') return;
+
+      const game = roomManager.getGame(currentRoomId);
+          if (!game) return;
+
+      const result = game.catchUno(socket.id);
+          if (result.success) {
+            const newState = game.getState();
+            room.gameState = newState;
+      
+            for (const player of room.players) {
+              const playerState = game.getPlayerState(player.id);
+              io.to(player.id).emit('game:state_update', {
+                ...playerState.publicState,
+                yourHand: playerState.hand
+              });
+            }
+          } else {
+            socket.emit('game:error', result.message);
+      }
+    });
 
   // Pass turn
   socket.on('game:pass_turn', () => {

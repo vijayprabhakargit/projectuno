@@ -31,6 +31,8 @@ export interface GameState {
   winner: string | null;
   gameStarted: boolean;
   unoCalled: boolean;
+  unoPenaltyWindow: string | null; // Player ID who failed to call UNO, null if none
+  drawnCardId: string | null; // If set, the player drew this card and can only play this one
   waitingForColorChoice: boolean;
   pendingDraw: number;
   message: string;
