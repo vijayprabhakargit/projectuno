@@ -393,28 +393,89 @@ export class GameUI {
       }
 
   private drawTurnInfo(): void {
-    if (!this.gameState) return;
-    const ctx = this.ctx;
-    const w = this.screenWidth;
+      if (!this.gameState) return;
+      const ctx = this.ctx;
+      const w = this.screenWidth;
+      const h = this.screenHeight;
 
-    // Current turn indicator
-    const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
-    if (currentPlayer) {
-      const isMe = currentPlayer.id === this.myPlayerId;
-      ctx.fillStyle = isMe ? '#2ECC71' : '#E74C3C';
-      ctx.font = '10px "Press Start 2P", monospace';
-      ctx.textAlign = 'center';
+      // Current turn indicator
+      const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
+      if (currentPlayer) {
+        const isMe = currentPlayer.id === this.myPlayerId;
+        ctx.fillStyle = isMe ? '#2ECC71' : '#E74C3C';
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
       
-      if (this.isMyTurn) {
-              ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
+        if (this.isMyTurn) {
+          ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
         
-              // Draw button hints
-              ctx.fillStyle = '#7F8C8D';
-              ctx.font = '7px "Press Start 2P", monospace';
-              ctx.fillText('[Click card to play] [Press D to draw]', w / 2, this.screenHeight - 28);
+          // Draw button hints
+          ctx.fillStyle = '#7F8C8D';
+          ctx.font = '7px "Press Start 2P", monospace';
+          ctx.fillText('[Click card to play] [D=draw] [U=UNO]', w / 2, this.screenHeight - 28);
+        }
+      }
+
+      // ---- UNO call / catch buttons (always drawn when applicable) ----
+
+      const btnW = 120;
+      const btnH = 40;
+      const btnX = w - btnW - 15;
+      const btnY = h / 2 - btnH / 2;
+
+      // UNO call button — appears when player has exactly 1 card and hasn't called yet
+      const unoOpen = this.myHand.length === 1 && this.gameState.unoPenaltyWindow === this.myPlayerId;
+      if (unoOpen) {
+        // Pulsing glow
+        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#E74C3C';
+        ctx.shadowColor = '#E74C3C';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(btnX - 4, btnY - 4, btnW + 8, btnH + 8);
+        ctx.restore();
+
+        ctx.fillStyle = '#E74C3C';
+        ctx.fillRect(btnX, btnY, btnW, btnH);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(btnX, btnY, btnW, btnH);
+      
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('UNO!', btnX + btnW / 2, btnY + btnH / 2);
+      }
+
+      // Catch UNO button — appears when opponent is in the penalty window
+      if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
+        const catchX = 15;
+        const catchY = h / 2 - btnH / 2;
+      
+        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#F1C40F';
+        ctx.shadowColor = '#F1C40F';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(catchX - 4, catchY - 4, btnW + 8, btnH + 8);
+        ctx.restore();
+
+        ctx.fillStyle = '#F1C40F';
+        ctx.fillRect(catchX, catchY, btnW, btnH);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(catchX, catchY, btnW, btnH);
+      
+        ctx.fillStyle = '#000000';
+        ctx.font = '9px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('CATCH!', catchX + btnW / 2, catchY + btnH / 2);
       }
     }
-  }
 
   private isCardPlayable(card: Card): boolean {
       if (!this.gameState?.currentCard) return true;
@@ -453,31 +514,58 @@ export class GameUI {
   }
 
   handleClick(event: MouseEvent): void {
-      if (!this.gameState) return;
+        if (!this.gameState) return;
     
-      const rect = this.canvas.getBoundingClientRect();
-      const clickX = event.clientX - rect.left;
-      const clickY = event.clientY - rect.top;
-      const h = this.screenHeight;
-      const w = this.screenWidth;
+        const rect = this.canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        const h = this.screenHeight;
+        const w = this.screenWidth;
 
-      // Check if click is on the message close button
-      if (this.gameState?.message && !this.messageDismissed) {
-        const msgY = this.stateErrorMessage ? 60 : 20;
-        const msgW = 400;
-        const msgX = w / 2 - msgW / 2;
-        const btnX = msgX + msgW - 24;
-        const btnY = msgY + 2;
-        const btnSize = 26;
-        if (clickX >= btnX && clickX <= btnX + btnSize &&
-            clickY >= btnY && clickY <= btnY + btnSize) {
-          this.messageDismissed = true;
-          this.render();
-          return;
+        // Check if click is on the message close button
+        if (this.gameState?.message && !this.messageDismissed) {
+          const msgY = this.stateErrorMessage ? 60 : 20;
+          const msgW = 400;
+          const msgX = w / 2 - msgW / 2;
+          const btnX = msgX + msgW - 24;
+          const btnY = msgY + 2;
+          const btnSize = 26;
+          if (clickX >= btnX && clickX <= btnX + btnSize &&
+              clickY >= btnY && clickY <= btnY + btnSize) {
+            this.messageDismissed = true;
+            this.render();
+            return;
+          }
         }
-      }
 
-      if (!this.isMyTurn) return;
+        // Check if click is on the UNO button
+        const isUnoOpen = this.myHand.length === 1 && this.gameState.unoPenaltyWindow === this.myPlayerId;
+        if (isUnoOpen) {
+          const btnW = 120;
+          const btnH = 40;
+          const btnX = w - btnW - 15;
+          const btnY = h / 2 - btnH / 2;
+          if (clickX >= btnX && clickX <= btnX + btnW &&
+              clickY >= btnY && clickY <= btnY + btnH) {
+            socketClient.callUno();
+            return;
+          }
+        }
+
+        // Check if click is on the Catch button
+        if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
+          const btnW = 120;
+          const btnH = 40;
+          const catchX = 15;
+          const catchY = h / 2 - btnH / 2;
+          if (clickX >= catchX && clickX <= catchX + btnW &&
+              clickY >= catchY && clickY <= catchY + btnH) {
+            socketClient.catchUno();
+            return;
+          }
+        }
+
+        if (!this.isMyTurn) return;
 
       // Check if click is on player's hand
     const totalCardsWidth = this.myHand.length * (this.cardWidth + 6);

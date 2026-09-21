@@ -98,8 +98,12 @@ export class SocketClient {
     }
 
     returnToLobby(): void {
-      this.socket?.emit('room:return_to_lobby');
-    }
+          this.socket?.emit('room:return_to_lobby');
+        }
+
+        catchUno(): void {
+          this.socket?.emit('game:catch_uno');
+        }
 
   // Event registration
   on(event: string, callback: EventCallback): () => void {
