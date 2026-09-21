@@ -20,8 +20,9 @@ export class GameUI {
   private cardWidth: number = 70;
   private cardHeight: number = 100;
   private animationFrame: number = 0;
-  private stateErrorMessage: string | null = null;
-  private stateErrorTimer: number = 0;
+    private stateErrorMessage: string | null = null;
+    private stateErrorTimer: number = 0;
+    private messageDismissed: boolean = false;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -63,12 +64,13 @@ export class GameUI {
 
   private registerSocketEvents(): void {
     socketClient.on('game:state_update', (state: any) => {
-      this.gameState = state;
-      this.myHand = state.yourHand || [];
-      this.isMyTurn = state.currentPlayerIndex === this.findMyPlayerIndex();
-      this.selectedCardIndex = -1;
-      this.render();
-    });
+          this.gameState = state;
+          this.myHand = state.yourHand || [];
+          this.isMyTurn = state.currentPlayerIndex === this.findMyPlayerIndex();
+          this.selectedCardIndex = -1;
+          this.messageDismissed = false; // Reset on new state
+          this.render();
+        });
 
     socketClient.on('game:game_over', (winnerId: string, finalState: GameState) => {
       this.gameState = finalState;
@@ -345,34 +347,50 @@ export class GameUI {
   }
 
   private drawGameInfo(): void {
-      const ctx = this.ctx;
-      const w = this.screenWidth;
+        const ctx = this.ctx;
+        const w = this.screenWidth;
     
-      // Error message display (flashing)
-      if (this.stateErrorMessage) {
-        ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
-        ctx.fillRect(w / 2 - 220, 20, 440, 35);
+        // Error message display (flashing)
+        if (this.stateErrorMessage) {
+          ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+          ctx.fillRect(w / 2 - 220, 20, 440, 35);
       
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '7px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.stateErrorMessage, w / 2, 37);
-      }
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '7px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(this.stateErrorMessage, w / 2, 37);
+        }
     
-      // Message display
-      if (this.gameState?.message) {
-        const msgY = this.stateErrorMessage ? 60 : 20;
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(w / 2 - 200, msgY, 400, 30);
+        // Message display (skip if dismissed by user)
+        if (this.gameState?.message && !this.messageDismissed) {
+          const msgY = this.stateErrorMessage ? 60 : 20;
+          const msgW = 400;
+          const msgH = 30;
+          const msgX = w / 2 - msgW / 2;
+        
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(msgX, msgY, msgW, msgH);
+
+          // Close button (×)
+          const btnX = msgX + msgW - 24;
+          const btnY = msgY + 2;
+          const btnSize = 26;
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(btnX, btnY, btnSize, btnSize);
+          ctx.fillStyle = '#FFD700';
+          ctx.font = '14px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('×', btnX + btnSize / 2, btnY + btnSize / 2);
       
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '8px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(this.gameState.message, w / 2, msgY + 15);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '8px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(this.gameState.message, w / 2, msgY + 15);
+        }
       }
-    }
 
   private drawTurnInfo(): void {
     if (!this.gameState) return;
@@ -435,15 +453,33 @@ export class GameUI {
   }
 
   handleClick(event: MouseEvent): void {
-    if (!this.gameState || !this.isMyTurn) return;
+      if (!this.gameState) return;
     
-    const rect = this.canvas.getBoundingClientRect();
-    const clickX = event.clientX - rect.left;
-    const clickY = event.clientY - rect.top;
-    const h = this.screenHeight;
-    const w = this.screenWidth;
+      const rect = this.canvas.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const clickY = event.clientY - rect.top;
+      const h = this.screenHeight;
+      const w = this.screenWidth;
 
-    // Check if click is on player's hand
+      // Check if click is on the message close button
+      if (this.gameState?.message && !this.messageDismissed) {
+        const msgY = this.stateErrorMessage ? 60 : 20;
+        const msgW = 400;
+        const msgX = w / 2 - msgW / 2;
+        const btnX = msgX + msgW - 24;
+        const btnY = msgY + 2;
+        const btnSize = 26;
+        if (clickX >= btnX && clickX <= btnX + btnSize &&
+            clickY >= btnY && clickY <= btnY + btnSize) {
+          this.messageDismissed = true;
+          this.render();
+          return;
+        }
+      }
+
+      if (!this.isMyTurn) return;
+
+      // Check if click is on player's hand
     const totalCardsWidth = this.myHand.length * (this.cardWidth + 6);
     const startX = Math.max(10, (w - totalCardsWidth) / 2);
     const cardY = h - this.cardHeight - 60;
