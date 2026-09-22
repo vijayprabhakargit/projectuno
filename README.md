@@ -147,5 +147,20 @@ projectuno/
 - Backend: Node.js, Express, Socket.IO, TypeScript
 - Graphics: Custom pixel-art on Canvas
 
+## Follow-Up Improvements
+
+### 🎯 Multi-Player Opponent Display
+Currently, the game board only shows one opponent's cards at the top. When playing with **3+ players**, the UI should be updated to display multiple opponent hands around the board (top-left, top-right, etc.) with proper positioning and card counts. Each opponent should be clearly labeled and the active player's turn should be highlighted.
+
+### 📱 Mobile Responsive Design
+The game should render and play correctly on **mobile devices**. This includes:
+- **Responsive canvas sizing** — Auto-scale the game board to fit mobile screens
+- **Touch-friendly controls** — Tap-to-play (already works), but need larger hit targets for fingers
+- **Chat UX redesign** — The chat overlay needs to be more compact and collapsible on small screens (slide-in drawer or floating bubble style)
+- **Color picker modal** — Ensure the color choice buttons are large enough for mobile taps
+- **Hand scrolling** — The card hand should support horizontal swipe/touch scrolling on mobile
+
+Contributions and ideas for these improvements are welcome!
+
 ## License
 MIT
