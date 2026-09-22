@@ -102,8 +102,13 @@ export class SocketClient {
         }
 
         catchUno(): void {
-          this.socket?.emit('game:catch_uno');
-        }
+                  this.socket?.emit('game:catch_uno');
+                }
+
+                // Chat
+                sendChatMessage(message: string): void {
+                  this.socket?.emit('chat:message', message);
+                }
 
   // Event registration
   on(event: string, callback: EventCallback): () => void {

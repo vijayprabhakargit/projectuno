@@ -20,9 +20,12 @@ export class GameUI {
   private cardWidth: number = 70;
   private cardHeight: number = 100;
   private animationFrame: number = 0;
-    private stateErrorMessage: string | null = null;
-    private stateErrorTimer: number = 0;
-    private messageDismissed: boolean = false;
+      private stateErrorMessage: string | null = null;
+      private stateErrorTimer: number = 0;
+      private messageDismissed: boolean = false;
+      // Card horizontal scrolling
+      private scrollOffset: number = 0;
+      private maxVisibleCards: number = 7;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -51,16 +54,21 @@ export class GameUI {
       }
 
   private resizeCanvas(): void {
-    const container = this.canvas.parentElement!;
-    this.canvas.width = container.clientWidth;
-    this.canvas.height = container.clientHeight;
-    this.screenWidth = this.canvas.width;
-    this.screenHeight = this.canvas.height;
+      const container = this.canvas.parentElement!;
+      this.canvas.width = container.clientWidth;
+      this.canvas.height = container.clientHeight;
+      this.screenWidth = this.canvas.width;
+      this.screenHeight = this.canvas.height;
     
-    // Scale card sizes based on screen
-    this.cardWidth = Math.min(80, this.screenWidth / 10);
-    this.cardHeight = this.cardWidth * 1.4;
-  }
+      // Scale card sizes based on screen
+      this.cardWidth = Math.min(80, this.screenWidth / 10);
+      this.cardHeight = this.cardWidth * 1.4;
+    
+      // Calculate how many cards fit on screen
+      const cardWithGap = this.cardWidth + 6;
+      const availableWidth = this.screenWidth - 40 - 120; // account for scroll arrows + margins
+      this.maxVisibleCards = Math.max(4, Math.floor(availableWidth / cardWithGap));
+    }
 
   private registerSocketEvents(): void {
     socketClient.on('game:state_update', (state: any) => {
@@ -293,58 +301,94 @@ export class GameUI {
   }
 
   private drawPlayerHand(): void {
-    if (!this.gameState) return;
-    const ctx = this.ctx;
-    const h = this.screenHeight;
-    const w = this.screenWidth;
+      if (!this.gameState) return;
+      const ctx = this.ctx;
+      const h = this.screenHeight;
+      const w = this.screenWidth;
+      const cardY = h - this.cardHeight - 60;
+      const gap = 6;
+      const cardWithGap = this.cardWidth + gap;
 
-    // Calculate card layout
-    const totalCardsWidth = this.myHand.length * (this.cardWidth + 6);
-    const startX = Math.max(10, (w - totalCardsWidth) / 2);
-    const cardY = h - this.cardHeight - 60;
+      // Determine if scrolling is needed
+      const totalWidth = this.myHand.length * cardWithGap;
+      const needsScroll = totalWidth > w - 20;
 
-    // Draw each card
-    for (let i = 0; i < this.myHand.length; i++) {
-      const card = this.myHand[i];
-      const cx = startX + i * (this.cardWidth + 6);
-      const isSelected = i === this.selectedCardIndex;
-      
-      // Check if card is playable
-      const isPlayable = this.isCardPlayable(card);
-      
-      if (isPlayable && this.isMyTurn) {
-        // Highlight playable cards with subtle glow
-        ctx.shadowColor = this.getColorHex(card.color === 'None' ? 'Yellow' : card.color);
-        ctx.shadowBlur = 8;
+      // Clamp scroll offset
+      if (needsScroll) {
+        const maxOffset = Math.max(0, this.myHand.length - this.maxVisibleCards);
+        if (this.scrollOffset > maxOffset) this.scrollOffset = maxOffset;
+      } else {
+        this.scrollOffset = 0;
       }
 
-      this.renderer.drawCardBackground(card, {
-        x: cx,
-        y: isSelected ? cardY - 15 : cardY,
-        width: this.cardWidth,
-        height: this.cardHeight,
-        selected: isSelected
-      });
-      
-      this.renderer.drawCardContent(card, {
-        x: cx,
-        y: isSelected ? cardY - 15 : cardY,
-        width: this.cardWidth,
-        height: this.cardHeight,
-        selected: isSelected
-      });
-
-      ctx.shadowBlur = 0;
-      
-      // Show playable indicator
-      if (isPlayable && this.isMyTurn) {
-        ctx.fillStyle = '#2ECC71';
-        ctx.font = '6px "Press Start 2P", monospace';
+      // Draw left scroll arrow if needed
+      if (needsScroll && this.scrollOffset > 0) {
+        const arrowY = cardY + this.cardHeight / 2;
+        ctx.fillStyle = 'rgba(255,215,0,0.8)';
+        ctx.font = '20px "Press Start 2P", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('✓', cx + this.cardWidth / 2, cardY - 5);
+        ctx.textBaseline = 'middle';
+        ctx.fillText('◀', 18, arrowY);
+      }
+
+      // Draw each card (only visible ones based on scrollOffset)
+      const startIdx = this.scrollOffset;
+      const endIdx = Math.min(this.myHand.length, startIdx + this.maxVisibleCards + 1);
+      const visibleCount = endIdx - startIdx;
+      const visibleWidth = visibleCount * cardWithGap;
+      const startX = Math.max(10, (w - visibleWidth) / 2);
+
+      for (let i = startIdx; i < endIdx; i++) {
+        const card = this.myHand[i];
+        const cx = startX + (i - startIdx) * cardWithGap;
+        const isSelected = i === this.selectedCardIndex;
+      
+        // Check if card is playable
+        const isPlayable = this.isCardPlayable(card);
+      
+        if (isPlayable && this.isMyTurn) {
+          // Highlight playable cards with subtle glow
+          ctx.shadowColor = this.getColorHex(card.color === 'None' ? 'Yellow' : card.color);
+          ctx.shadowBlur = 8;
+        }
+
+        this.renderer.drawCardBackground(card, {
+          x: cx,
+          y: isSelected ? cardY - 15 : cardY,
+          width: this.cardWidth,
+          height: this.cardHeight,
+          selected: isSelected
+        });
+      
+        this.renderer.drawCardContent(card, {
+          x: cx,
+          y: isSelected ? cardY - 15 : cardY,
+          width: this.cardWidth,
+          height: this.cardHeight,
+          selected: isSelected
+        });
+
+        ctx.shadowBlur = 0;
+      
+        // Show playable indicator
+        if (isPlayable && this.isMyTurn) {
+          ctx.fillStyle = '#2ECC71';
+          ctx.font = '6px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('✓', cx + this.cardWidth / 2, cardY - 5);
+        }
+      }
+
+      // Draw right scroll arrow if needed
+      if (needsScroll && this.scrollOffset < this.myHand.length - this.maxVisibleCards) {
+        const arrowY = cardY + this.cardHeight / 2;
+        ctx.fillStyle = 'rgba(255,215,0,0.8)';
+        ctx.font = '20px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('▶', w - 18, arrowY);
       }
     }
-  }
 
   private drawGameInfo(): void {
         const ctx = this.ctx;
@@ -393,89 +437,93 @@ export class GameUI {
       }
 
   private drawTurnInfo(): void {
-      if (!this.gameState) return;
-      const ctx = this.ctx;
-      const w = this.screenWidth;
-      const h = this.screenHeight;
+        if (!this.gameState) return;
+        const ctx = this.ctx;
+        const w = this.screenWidth;
+        const h = this.screenHeight;
 
-      // Current turn indicator
-      const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
-      if (currentPlayer) {
-        const isMe = currentPlayer.id === this.myPlayerId;
-        ctx.fillStyle = isMe ? '#2ECC71' : '#E74C3C';
-        ctx.font = '10px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
+        // Current turn indicator
+        const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
+        if (currentPlayer) {
+          const isMe = currentPlayer.id === this.myPlayerId;
+          ctx.fillStyle = isMe ? '#2ECC71' : '#E74C3C';
+          ctx.font = '10px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
       
-        if (this.isMyTurn) {
-          ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
+          if (this.isMyTurn) {
+            ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
         
-          // Draw button hints
-          ctx.fillStyle = '#7F8C8D';
-          ctx.font = '7px "Press Start 2P", monospace';
-          ctx.fillText('[Click card to play] [D=draw] [U=UNO]', w / 2, this.screenHeight - 28);
+            // Draw button hints
+            ctx.fillStyle = '#7F8C8D';
+            ctx.font = '7px "Press Start 2P", monospace';
+            ctx.fillText('[Click card to play] [D=draw] [U=UNO]', w / 2, this.screenHeight - 28);
+          }
+        }
+
+        // ---- UNO call / catch buttons (always drawn when applicable) ----
+
+        const btnW = 120;
+        const btnH = 40;
+        // Position buttons higher — at 30% down from top instead of center
+        const btnY = h * 0.3;
+        const btnX = w - btnW - 15;
+
+        // UNO call button — appears when player has exactly 1 card (anytime, not just in penalty window)
+        // Show if player has 1 card AND either penalty window is open for them OR it's their turn
+        const shouldShowUno = this.myHand.length === 1 && (
+          this.gameState.unoPenaltyWindow === this.myPlayerId || this.isMyTurn
+        );
+        if (shouldShowUno) {
+          // Pulsing glow
+          const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+          ctx.save();
+          ctx.globalAlpha = pulse;
+          ctx.fillStyle = '#E74C3C';
+          ctx.shadowColor = '#E74C3C';
+          ctx.shadowBlur = 15;
+          ctx.fillRect(btnX - 4, btnY - 4, btnW + 8, btnH + 8);
+          ctx.restore();
+
+          ctx.fillStyle = '#E74C3C';
+          ctx.fillRect(btnX, btnY, btnW, btnH);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(btnX, btnY, btnW, btnH);
+      
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '12px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('UNO!', btnX + btnW / 2, btnY + btnH / 2);
+        }
+
+        // Catch UNO button — appears when opponent is in the penalty window
+        if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
+          const catchX = 15;
+          const catchY = h * 0.3;
+      
+          const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+          ctx.save();
+          ctx.globalAlpha = pulse;
+          ctx.fillStyle = '#F1C40F';
+          ctx.shadowColor = '#F1C40F';
+          ctx.shadowBlur = 15;
+          ctx.fillRect(catchX - 4, catchY - 4, btnW + 8, btnH + 8);
+          ctx.restore();
+
+          ctx.fillStyle = '#F1C40F';
+          ctx.fillRect(catchX, catchY, btnW, btnH);
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(catchX, catchY, btnW, btnH);
+      
+          ctx.fillStyle = '#000000';
+          ctx.font = '9px "Press Start 2P", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('CATCH!', catchX + btnW / 2, catchY + btnH / 2);
         }
       }
-
-      // ---- UNO call / catch buttons (always drawn when applicable) ----
-
-      const btnW = 120;
-      const btnH = 40;
-      const btnX = w - btnW - 15;
-      const btnY = h / 2 - btnH / 2;
-
-      // UNO call button — appears when player has exactly 1 card and hasn't called yet
-      const unoOpen = this.myHand.length === 1 && this.gameState.unoPenaltyWindow === this.myPlayerId;
-      if (unoOpen) {
-        // Pulsing glow
-        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
-        ctx.save();
-        ctx.globalAlpha = pulse;
-        ctx.fillStyle = '#E74C3C';
-        ctx.shadowColor = '#E74C3C';
-        ctx.shadowBlur = 15;
-        ctx.fillRect(btnX - 4, btnY - 4, btnW + 8, btnH + 8);
-        ctx.restore();
-
-        ctx.fillStyle = '#E74C3C';
-        ctx.fillRect(btnX, btnY, btnW, btnH);
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(btnX, btnY, btnW, btnH);
-      
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('UNO!', btnX + btnW / 2, btnY + btnH / 2);
-      }
-
-      // Catch UNO button — appears when opponent is in the penalty window
-      if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
-        const catchX = 15;
-        const catchY = h / 2 - btnH / 2;
-      
-        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
-        ctx.save();
-        ctx.globalAlpha = pulse;
-        ctx.fillStyle = '#F1C40F';
-        ctx.shadowColor = '#F1C40F';
-        ctx.shadowBlur = 15;
-        ctx.fillRect(catchX - 4, catchY - 4, btnW + 8, btnH + 8);
-        ctx.restore();
-
-        ctx.fillStyle = '#F1C40F';
-        ctx.fillRect(catchX, catchY, btnW, btnH);
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(catchX, catchY, btnW, btnH);
-      
-        ctx.fillStyle = '#000000';
-        ctx.font = '9px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('CATCH!', catchX + btnW / 2, catchY + btnH / 2);
-      }
-    }
 
   private isCardPlayable(card: Card): boolean {
       if (!this.gameState?.currentCard) return true;
@@ -514,104 +562,143 @@ export class GameUI {
   }
 
   handleClick(event: MouseEvent): void {
-        if (!this.gameState) return;
+          if (!this.gameState) return;
     
-        const rect = this.canvas.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
-        const clickY = event.clientY - rect.top;
-        const h = this.screenHeight;
-        const w = this.screenWidth;
+          const rect = this.canvas.getBoundingClientRect();
+          const clickX = event.clientX - rect.left;
+          const clickY = event.clientY - rect.top;
+          const h = this.screenHeight;
+          const w = this.screenWidth;
+          const cardY = h - this.cardHeight - 60;
+          const gap = 6;
+          const cardWithGap = this.cardWidth + gap;
 
-        // Check if click is on the message close button
-        if (this.gameState?.message && !this.messageDismissed) {
-          const msgY = this.stateErrorMessage ? 60 : 20;
-          const msgW = 400;
-          const msgX = w / 2 - msgW / 2;
-          const btnX = msgX + msgW - 24;
-          const btnY = msgY + 2;
-          const btnSize = 26;
-          if (clickX >= btnX && clickX <= btnX + btnSize &&
-              clickY >= btnY && clickY <= btnY + btnSize) {
-            this.messageDismissed = true;
-            this.render();
-            return;
+          // Check if click is on the message close button
+          if (this.gameState?.message && !this.messageDismissed) {
+            const msgY = this.stateErrorMessage ? 60 : 20;
+            const msgW = 400;
+            const msgX = w / 2 - msgW / 2;
+            const btnX = msgX + msgW - 24;
+            const btnY = msgY + 2;
+            const btnSize = 26;
+            if (clickX >= btnX && clickX <= btnX + btnSize &&
+                clickY >= btnY && clickY <= btnY + btnSize) {
+              this.messageDismissed = true;
+              this.render();
+              return;
+            }
           }
-        }
 
-        // Check if click is on the UNO button
-        const isUnoOpen = this.myHand.length === 1 && this.gameState.unoPenaltyWindow === this.myPlayerId;
-        if (isUnoOpen) {
+          // Check for scroll arrow clicks
+          const totalWidth = this.myHand.length * cardWithGap;
+          const needsScroll = totalWidth > w - 20;
+          if (needsScroll) {
+            // Left scroll arrow
+            if (this.scrollOffset > 0 && clickX >= 5 && clickX <= 30 && 
+                clickY >= cardY && clickY <= cardY + this.cardHeight) {
+              this.scrollOffset = Math.max(0, this.scrollOffset - 1);
+              this.render();
+              return;
+            }
+            // Right scroll arrow
+            if (this.scrollOffset < this.myHand.length - this.maxVisibleCards &&
+                clickX >= w - 30 && clickX <= w - 5 &&
+                clickY >= cardY && clickY <= cardY + this.cardHeight) {
+              this.scrollOffset = Math.min(this.myHand.length - this.maxVisibleCards, this.scrollOffset + 1);
+              this.render();
+              return;
+            }
+          }
+
+          // Check if click is on the UNO button
           const btnW = 120;
           const btnH = 40;
-          const btnX = w - btnW - 15;
-          const btnY = h / 2 - btnH / 2;
-          if (clickX >= btnX && clickX <= btnX + btnW &&
-              clickY >= btnY && clickY <= btnY + btnH) {
-            socketClient.callUno();
-            return;
+          const btnY = h * 0.3;
+          const shouldShowUno = this.myHand.length === 1 && (
+            this.gameState.unoPenaltyWindow === this.myPlayerId || this.isMyTurn
+          );
+          if (shouldShowUno) {
+            const btnX = w - btnW - 15;
+            if (clickX >= btnX && clickX <= btnX + btnW &&
+                clickY >= btnY && clickY <= btnY + btnH) {
+              socketClient.callUno();
+              return;
+            }
           }
-        }
 
-        // Check if click is on the Catch button
-        if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
-          const btnW = 120;
-          const btnH = 40;
-          const catchX = 15;
-          const catchY = h / 2 - btnH / 2;
-          if (clickX >= catchX && clickX <= catchX + btnW &&
-              clickY >= catchY && clickY <= catchY + btnH) {
-            socketClient.catchUno();
-            return;
+          // Check if click is on the Catch button
+          if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
+            const catchX = 15;
+            const catchY = h * 0.3;
+            if (clickX >= catchX && clickX <= catchX + btnW &&
+                clickY >= catchY && clickY <= catchY + btnH) {
+              socketClient.catchUno();
+              return;
+            }
           }
-        }
 
-        if (!this.isMyTurn) return;
+          if (!this.isMyTurn) return;
 
-      // Check if click is on player's hand
-    const totalCardsWidth = this.myHand.length * (this.cardWidth + 6);
-    const startX = Math.max(10, (w - totalCardsWidth) / 2);
-    const cardY = h - this.cardHeight - 60;
+        // Check if click is on player's hand (accounting for scrollOffset)
+      const startIdx = this.scrollOffset;
+      const endIdx = Math.min(this.myHand.length, startIdx + this.maxVisibleCards + 1);
+      const visibleCount = endIdx - startIdx;
+      const visibleWidth = visibleCount * cardWithGap;
+      const startX = Math.max(10, (w - visibleWidth) / 2);
     
-        for (let i = 0; i < this.myHand.length; i++) {
-      const cx = startX + i * (this.cardWidth + 6);
-      const cy = i === this.selectedCardIndex ? cardY - 15 : cardY;
+          for (let i = startIdx; i < endIdx; i++) {
+        const cx = startX + (i - startIdx) * cardWithGap;
+        const cy = i === this.selectedCardIndex ? cardY - 15 : cardY;
       
-      if (clickX >= cx && clickX <= cx + this.cardWidth &&
-          clickY >= cy && clickY <= cy + this.cardHeight) {
+        if (clickX >= cx && clickX <= cx + this.cardWidth &&
+            clickY >= cy && clickY <= cy + this.cardHeight) {
         
-        // Play the card immediately on click (single-click toggle)
-        const card = this.myHand[i];
-        if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
-          // Show color picker
-          this.showColorPicker(card.id);
-        } else {
-          socketClient.playCard(card.id);
+          // Play the card immediately on click (single-click toggle)
+          const card = this.myHand[i];
+          if (card.type === 'Wild' || card.type === 'Wild Draw Four') {
+            // Show color picker
+            this.showColorPicker(card.id);
+          } else {
+            socketClient.playCard(card.id);
+          }
+          this.selectedCardIndex = -1;
+          this.render();
+          break;
         }
-        this.selectedCardIndex = -1;
-        this.render();
-        break;
       }
     }
-  }
 
   handleKeyDown(event: KeyboardEvent): void {
-    if (!this.gameState) return;
+      if (!this.gameState) return;
     
-    switch (event.key.toLowerCase()) {
-      case 'd':
-        if (this.isMyTurn) {
-          socketClient.drawCard();
-        }
-        break;
-      case 'u':
-        socketClient.callUno();
-        break;
-      case 'escape':
-        this.selectedCardIndex = -1;
-        this.render();
-        break;
+      switch (event.key.toLowerCase()) {
+        case 'd':
+          if (this.isMyTurn) {
+            socketClient.drawCard();
+          }
+          break;
+        case 'u':
+          socketClient.callUno();
+          break;
+        case 'escape':
+          this.selectedCardIndex = -1;
+          this.render();
+          break;
+        case 'arrowleft':
+          if (this.scrollOffset > 0) {
+            this.scrollOffset--;
+            this.render();
+          }
+          break;
+        case 'arrowright':
+          const maxOffset = Math.max(0, this.myHand.length - this.maxVisibleCards);
+          if (this.scrollOffset < maxOffset) {
+            this.scrollOffset++;
+            this.render();
+          }
+          break;
+      }
     }
-  }
 
   private showColorPicker(cardId: string): void {
       const colors: CardColor[] = ['Red', 'Blue', 'Green', 'Yellow'];

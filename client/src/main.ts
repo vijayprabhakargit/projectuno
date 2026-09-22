@@ -145,6 +145,7 @@ btnLeaveRoom.addEventListener('click', () => {
   btnReady.textContent = 'READY';
   btnReady.classList.remove('primary');
   btnReady.classList.add('secondary');
+  deactivateChat();
 });
 
 function updatePlayersList(players: any[]): void {
@@ -214,10 +215,10 @@ socketClient.on('room:joined', (roomId: string, players: any[]) => {
   isAdmin = me?.isAdmin || false;
   
   // Show room screen
-  showScreen('room-screen');
-});
+    showScreen('room-screen');
+  });
 
-// Handle scores update
+  // Handle scores update
 socketClient.on('room:scores_update', (scores: Record<string, number>) => {
   updateScoresBoard(scores);
 });
@@ -348,6 +349,7 @@ socketClient.on('room:player_ready', (playerId: string, ready: boolean) => {
 // Game events
 socketClient.on('game:started', (gameState: any) => {
   showScreen('game-screen');
+  activateChat();
   
   // Initialize game UI
   gameUI = new GameUI('game-canvas');
@@ -377,6 +379,97 @@ socketClient.on('room:error', (message: string) => {
 
 socketClient.on('game:error', (message: string) => {
   console.warn('Game error:', message);
+});
+
+// ===== CHAT SYSTEM =====
+const chatOverlay = document.getElementById('chat-overlay')!;
+const chatMessages = document.getElementById('chat-messages')!;
+const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+const chatSendBtn = document.getElementById('chat-send-btn')!;
+const chatToggleBtn = document.getElementById('chat-toggle-btn')!;
+const chatHeader = document.getElementById('chat-header')!;
+let chatCollapsed = false;
+
+// Only show chat during active gameplay (not in room/lobby)
+function activateChat() {
+  chatOverlay.classList.add('active');
+}
+
+function deactivateChat() {
+  chatOverlay.classList.remove('active');
+}
+
+// Handle incoming chat messages
+socketClient.on('chat:message', (data: { playerId: string; playerName: string; message: string; timestamp: number }) => {
+  addChatMessage(data.playerId, data.playerName, data.message, data.timestamp);
+});
+
+function addChatMessage(playerId: string, playerName: string, message: string, timestamp?: number): void {
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'chat-msg';
+  
+  const isMe = playerId === myPlayerId;
+  const nameSpan = document.createElement('span');
+  nameSpan.className = `msg-name${isMe ? ' me' : ''}`;
+  nameSpan.textContent = playerName + ': ';
+  
+  const textSpan = document.createElement('span');
+  textSpan.className = 'msg-text';
+  textSpan.textContent = message;
+  
+  msgDiv.appendChild(nameSpan);
+  msgDiv.appendChild(textSpan);
+  
+  if (timestamp) {
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'msg-time';
+    const date = new Date(timestamp);
+    timeSpan.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    msgDiv.appendChild(timeSpan);
+  }
+  
+  chatMessages.appendChild(msgDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Send chat message
+function sendChatMessage(): void {
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  socketClient.sendChatMessage(msg);
+  chatInput.value = '';
+}
+
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+// Toggle collapse
+chatToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  chatCollapsed = !chatCollapsed;
+  if (chatCollapsed) {
+    chatMessages.classList.add('collapsed');
+    document.getElementById('chat-input-area')!.classList.add('collapsed');
+    chatToggleBtn.textContent = '+';
+    chatMessages.style.display = 'none';
+    document.getElementById('chat-input-area')!.style.display = 'none';
+  } else {
+    chatMessages.classList.remove('collapsed');
+    document.getElementById('chat-input-area')!.classList.remove('collapsed');
+    chatMessages.style.display = '';
+    document.getElementById('chat-input-area')!.style.display = '';
+    chatToggleBtn.textContent = '−';
+  }
+});
+
+// Also toggle on header click
+chatHeader.addEventListener('click', () => {
+  chatToggleBtn.click();
 });
 
 // ===== INITIALIZATION =====

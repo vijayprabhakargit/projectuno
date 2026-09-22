@@ -322,7 +322,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnection
+    // ===== CHAT EVENTS =====
+    socket.on('chat:message', (message: string) => {
+      if (!currentRoomId || !message.trim()) return;
+      const room = roomManager.getRoom(currentRoomId);
+      if (!room) return;
+      const player = room.players.find((p: PlayerRoomInfo) => p.id === socket.id);
+      if (!player) return;
+    
+      // Broadcast chat message to all players in the room
+      io.to(currentRoomId).emit('chat:message', {
+        playerId: socket.id,
+        playerName: player.name,
+        message: message.trim().substring(0, 200),
+        timestamp: Date.now()
+      });
+    });
+
+    // Handle disconnection
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
     if (currentRoomId) {
