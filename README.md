@@ -17,6 +17,26 @@ A real-time multiplayer UNO card game with retro pixel-art graphics, built with 
 - **UNO penalty** — Forgot to call UNO? You'll draw 2 cards!
 - **Draw-restriction enforcement** — After drawing, only the drawn card can be played
 
+## Play Live 🎮
+
+The game is deployed and ready to play with friends anywhere in the world!
+
+| Component | Hosted At |
+|-----------|-----------|
+| **Client** (play the game) | [https://projectunoplay.onrender.com](https://projectunoplay.onrender.com) |
+| **Server** (game logic + WebSocket) | [https://projectuno-675b.onrender.com](https://projectuno-675b.onrender.com) |
+
+### How to play with friends
+
+1. All players open **[https://projectunoplay.onrender.com](https://projectunoplay.onrender.com)** in their browser
+2. One player enters their name and clicks **Create Room** — a 4-letter room code is generated
+3. Other players enter their name + the room code and click **Join Room**
+4. Everyone clicks **READY**
+5. The room admin (who created the room) clicks **START GAME**
+6. Play UNO! Use **D** to draw, **U** to call UNO, and click cards to play them
+
+> **Note:** Render's free tier may take 30–60 seconds to wake up after inactivity (cold start). Just refresh if needed!
+
 ## Quick Start
 
 ### Prerequisites
