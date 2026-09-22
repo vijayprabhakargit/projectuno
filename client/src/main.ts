@@ -57,9 +57,9 @@ const roomScreen = $('room-screen');
 const roomCodeHeader = $('room-code-header');
 const playersContainer = $('players-container');
 const playerCount = $('player-count');
-const btnReady = $('btn-ready');
-const btnStartGame = $('btn-start-game');
-const btnLeaveRoom = $('btn-leave-room');
+const btnReady = $('btn-ready') as HTMLButtonElement;
+const btnStartGame = $('btn-start-game') as HTMLButtonElement;
+const btnLeaveRoom = $('btn-leave-room') as HTMLButtonElement;
 const roomError = $('room-error');
 
 // Scoreboard
