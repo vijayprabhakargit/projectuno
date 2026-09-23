@@ -1,6 +1,7 @@
 import { Card, CardColor, GameState, Player } from '../../../shared/types';
 import { CardRenderer } from '../graphics/cardRenderer';
 import { socketClient } from '../game/socketClient';
+import { soundManager } from '../audio/soundManager';
 
 // ============================================================
 // GAME UI - Canvas-based retro game board
@@ -71,26 +72,77 @@ export class GameUI {
     }
 
   private registerSocketEvents(): void {
-    socketClient.on('game:state_update', (state: any) => {
-          this.gameState = state;
-          this.myHand = state.yourHand || [];
-          this.isMyTurn = state.currentPlayerIndex === this.findMyPlayerIndex();
-          this.selectedCardIndex = -1;
-          this.messageDismissed = false; // Reset on new state
-          this.render();
-        });
+      socketClient.on('game:state_update', (state: any) => {
+            // Capture previous state for sound detection
+            const prevState = this.gameState;
+            const prevHandLength = this.myHand.length;
+            const wasMyTurn = this.isMyTurn;
 
-    socketClient.on('game:game_over', (winnerId: string, finalState: GameState) => {
-      this.gameState = finalState;
-      this.render();
-      this.showGameOver(winnerId);
-    });
+            this.gameState = state;
+            this.myHand = state.yourHand || [];
+            this.isMyTurn = state.currentPlayerIndex === this.findMyPlayerIndex();
+            this.selectedCardIndex = -1;
+            this.messageDismissed = false; // Reset on new state
 
-    socketClient.on('game:error', (message: string) => {
-          console.warn('Game error:', message);
-          this.showError(message);
-        });
-  }
+            // ---- Sound effects based on state changes ----
+            if (prevState) {
+              // Card played — detect by currentCard changing
+              const prevCard = prevState.currentCard;
+              const newCard = state.currentCard;
+              if (prevCard?.id !== newCard?.id && newCard) {
+                switch (newCard.type) {
+                  case 'Skip':
+                    soundManager.playSkip();
+                    break;
+                  case 'Reverse':
+                    soundManager.playReverse();
+                    break;
+                  case 'Draw Two':
+                    soundManager.playDrawTwo();
+                    break;
+                  case 'Wild':
+                  case 'Wild Draw Four':
+                    soundManager.playWildCard();
+                    break;
+                  default:
+                    // Number or other card — standard card blip
+                    soundManager.playCardPlay();
+                    break;
+                }
+              }
+
+              // Your turn — detected when turn passes to this player
+              if (!wasMyTurn && this.isMyTurn) {
+                setTimeout(() => soundManager.playYourTurn(), 300);
+              }
+
+              // Card drawn — detected when hand size increases
+              if (this.myHand.length > prevHandLength) {
+                soundManager.playCardDraw();
+              }
+            }
+
+            this.render();
+          });
+
+      socketClient.on('game:game_over', (winnerId: string, finalState: GameState) => {
+        this.gameState = finalState;
+        this.render();
+        this.showGameOver(winnerId);
+        // Play win/lose sound
+        if (winnerId === this.myPlayerId) {
+          soundManager.playWin();
+        } else {
+          soundManager.playLose();
+        }
+      });
+
+      socketClient.on('game:error', (message: string) => {
+            console.warn('Game error:', message);
+            this.showError(message);
+            soundManager.playError();
+          });
+    }
 
   private findMyPlayerIndex(): number {
     if (!this.gameState) return -1;
@@ -608,73 +660,79 @@ export class GameUI {
             const btnY = msgY + 2;
             const btnSize = 26;
             if (clickX >= btnX && clickX <= btnX + btnSize &&
-                clickY >= btnY && clickY <= btnY + btnSize) {
-              this.messageDismissed = true;
-              this.render();
-              return;
-            }
+                            clickY >= btnY && clickY <= btnY + btnSize) {
+                          this.messageDismissed = true;
+                          soundManager.playButtonClick();
+                          this.render();
+                          return;
+                        }
           }
 
           // Check for scroll arrow clicks
           const totalWidth = this.myHand.length * cardWithGap;
           const needsScroll = totalWidth > w - 20;
           if (needsScroll) {
-            // Left scroll arrow
-            if (this.scrollOffset > 0 && clickX >= 5 && clickX <= 30 && 
-                clickY >= cardY && clickY <= cardY + this.cardHeight) {
-              this.scrollOffset = Math.max(0, this.scrollOffset - 1);
-              this.render();
-              return;
-            }
-            // Right scroll arrow
-            if (this.scrollOffset < this.myHand.length - this.maxVisibleCards &&
-                clickX >= w - 30 && clickX <= w - 5 &&
-                clickY >= cardY && clickY <= cardY + this.cardHeight) {
-              this.scrollOffset = Math.min(this.myHand.length - this.maxVisibleCards, this.scrollOffset + 1);
-              this.render();
-              return;
-            }
-          }
+                      // Left scroll arrow
+                      if (this.scrollOffset > 0 && clickX >= 5 && clickX <= 30 && 
+                          clickY >= cardY && clickY <= cardY + this.cardHeight) {
+                        this.scrollOffset = Math.max(0, this.scrollOffset - 1);
+                        soundManager.playButtonClick();
+                        this.render();
+                        return;
+                      }
+                      // Right scroll arrow
+                      if (this.scrollOffset < this.myHand.length - this.maxVisibleCards &&
+                          clickX >= w - 30 && clickX <= w - 5 &&
+                          clickY >= cardY && clickY <= cardY + this.cardHeight) {
+                        this.scrollOffset = Math.min(this.myHand.length - this.maxVisibleCards, this.scrollOffset + 1);
+                        soundManager.playButtonClick();
+                        this.render();
+                        return;
+                      }
+                    }
 
           // Check if click is on the DRAW button
-          if (this.isMyTurn) {
-            const drawBtnW = 100;
-            const drawBtnH = 40;
-            const drawBtnX = 15;
-            const drawBtnY = h * 0.3 + 60;
-            if (clickX >= drawBtnX && clickX <= drawBtnX + drawBtnW &&
-                clickY >= drawBtnY && clickY <= drawBtnY + drawBtnH) {
-              socketClient.drawCard();
-              return;
-            }
-          }
+                    if (this.isMyTurn) {
+                      const drawBtnW = 100;
+                      const drawBtnH = 40;
+                      const drawBtnX = 15;
+                      const drawBtnY = h * 0.3 + 60;
+                      if (clickX >= drawBtnX && clickX <= drawBtnX + drawBtnW &&
+                          clickY >= drawBtnY && clickY <= drawBtnY + drawBtnH) {
+                        socketClient.drawCard();
+                        this.render();
+                        return;
+                      }
+                    }
 
-          // Check if click is on the UNO button
-          const btnW = 120;
-          const btnH = 40;
-          const btnY = h * 0.3;
-          const shouldShowUno = this.myHand.length === 1 && (
-            this.gameState.unoPenaltyWindow === this.myPlayerId || this.isMyTurn
-          );
-          if (shouldShowUno) {
-            const btnX = w - btnW - 15;
-            if (clickX >= btnX && clickX <= btnX + btnW &&
-                clickY >= btnY && clickY <= btnY + btnH) {
-              socketClient.callUno();
-              return;
-            }
-          }
+                    // Check if click is on the UNO button
+                    const btnW = 120;
+                    const btnH = 40;
+                    const btnY = h * 0.3;
+                    const shouldShowUno = this.myHand.length === 1 && (
+                      this.gameState.unoPenaltyWindow === this.myPlayerId || this.isMyTurn
+                    );
+                    if (shouldShowUno) {
+                      const btnX = w - btnW - 15;
+                      if (clickX >= btnX && clickX <= btnX + btnW &&
+                          clickY >= btnY && clickY <= btnY + btnH) {
+                        soundManager.playUnoCall();
+                        socketClient.callUno();
+                        return;
+                      }
+                    }
 
-          // Check if click is on the Catch button
-          if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
-            const catchX = 15;
-            const catchY = h * 0.3;
-            if (clickX >= catchX && clickX <= catchX + btnW &&
-                clickY >= catchY && clickY <= catchY + btnH) {
-              socketClient.catchUno();
-              return;
-            }
-          }
+                    // Check if click is on the Catch button
+                    if (this.gameState.unoPenaltyWindow && this.gameState.unoPenaltyWindow !== this.myPlayerId) {
+                      const catchX = 15;
+                      const catchY = h * 0.3;
+                      if (clickX >= catchX && clickX <= catchX + btnW &&
+                          clickY >= catchY && clickY <= catchY + btnH) {
+                        soundManager.playCatchUno();
+                        socketClient.catchUno();
+                        return;
+                      }
+                    }
 
           if (!this.isMyTurn) return;
 
@@ -761,14 +819,15 @@ export class GameUI {
 
       for (const color of colors) {
         const btn = document.createElement('button');
-        btn.style.cssText = `
-          width: 60px; height: 60px; border-radius: 50%; border: 3px solid white;
-          cursor: pointer; background: ${this.getColorHex(color)};
-        `;
-        btn.addEventListener('click', () => {
-          document.body.removeChild(modal);
-          socketClient.playCard(cardId, color);
-        });
+                btn.style.cssText = `
+                  width: 60px; height: 60px; border-radius: 50%; border: 3px solid white;
+                  cursor: pointer; background: ${this.getColorHex(color)};
+                `;
+                btn.addEventListener('click', () => {
+                  soundManager.playButtonClick();
+                  document.body.removeChild(modal);
+                  socketClient.playCard(cardId, color);
+                });
         colorButtons.appendChild(btn);
       }
 
@@ -815,10 +874,11 @@ export class GameUI {
         cursor: pointer; margin-top: 10px;
       `;
       replayBtn.addEventListener('click', () => {
-              document.body.removeChild(modal);
-              this.stop();
-              socketClient.returnToLobby();
-            });
+                    soundManager.playButtonClick();
+                    document.body.removeChild(modal);
+                    this.stop();
+                    socketClient.returnToLobby();
+                  });
       container.appendChild(replayBtn);
 
       modal.appendChild(container);

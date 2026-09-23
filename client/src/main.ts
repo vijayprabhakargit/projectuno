@@ -6,6 +6,7 @@
 import { socketClient } from './game/socketClient';
 import { CardColor } from '../../shared/types';
 import { GameUI } from './ui/gameUI';
+import { soundManager } from './audio/soundManager';
 import './styles/game.css';
 
 // ===== STATE =====
@@ -86,6 +87,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // Create Room
 btnCreateRoom.addEventListener('click', () => {
+  soundManager.playButtonClick();
   const name = createName.value.trim();
   if (!name) {
     showLobbyError('Please enter your name');
@@ -97,6 +99,7 @@ btnCreateRoom.addEventListener('click', () => {
 
 // Join Room
 btnJoinRoom.addEventListener('click', () => {
+  soundManager.playButtonClick();
   const name = joinName.value.trim();
   const code = joinCode.value.trim().toUpperCase();
   
@@ -123,6 +126,7 @@ function showLobbyError(msg: string): void {
 
 // Ready button
 btnReady.addEventListener('click', () => {
+  soundManager.playButtonClick();
   isReady = !isReady;
   socketClient.setReady(isReady);
   btnReady.textContent = isReady ? 'READY' : 'NOT READY';
@@ -132,11 +136,13 @@ btnReady.addEventListener('click', () => {
 
 // Start Game button
 btnStartGame.addEventListener('click', () => {
+  soundManager.playButtonClick();
   socketClient.startGame();
 });
 
 // Leave Room
 btnLeaveRoom.addEventListener('click', () => {
+  soundManager.playButtonClick();
   socketClient.leaveRoom();
   showScreen('lobby-screen');
   currentRoomId = '';
@@ -351,6 +357,9 @@ socketClient.on('game:started', (gameState: any) => {
   showScreen('game-screen');
   activateChat();
   
+  // Play game start sound
+  soundManager.playGameStart();
+  
   // Initialize game UI
   gameUI = new GameUI('game-canvas');
   gameUI.setPlayerId(myPlayerId);
@@ -402,6 +411,10 @@ function deactivateChat() {
 // Handle incoming chat messages
 socketClient.on('chat:message', (data: { playerId: string; playerName: string; message: string; timestamp: number }) => {
   addChatMessage(data.playerId, data.playerName, data.message, data.timestamp);
+  // Play notification sound for other players' messages
+  if (data.playerId !== myPlayerId) {
+    soundManager.playChatMessage();
+  }
 });
 
 function addChatMessage(playerId: string, playerName: string, message: string, timestamp?: number): void {
@@ -475,6 +488,11 @@ chatHeader.addEventListener('click', () => {
 // ===== INITIALIZATION =====
 function init(): void {
   console.log('UNO Classic starting...');
+
+  // Initialize sound engine on first user click (required for autoplay policy)
+  document.addEventListener('click', () => {
+    soundManager.init();
+  }, { once: true });
   
   // Connect to server
   const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
