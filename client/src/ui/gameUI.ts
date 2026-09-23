@@ -451,13 +451,39 @@ export class GameUI {
           ctx.textAlign = 'center';
       
           if (this.isMyTurn) {
-            ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
+                      ctx.fillText('YOUR TURN!', w / 2, this.screenHeight - 40);
         
-            // Draw button hints
-            ctx.fillStyle = '#7F8C8D';
-            ctx.font = '7px "Press Start 2P", monospace';
-            ctx.fillText('[Click card to play] [D=draw] [U=UNO]', w / 2, this.screenHeight - 28);
-          }
+                      // Draw button hints
+                      ctx.fillStyle = '#7F8C8D';
+                      ctx.font = '7px "Press Start 2P", monospace';
+                      ctx.fillText('[Click card to play]', w / 2, this.screenHeight - 28);
+                    }
+
+                    // ---- Draw button (always visible during player's turn) ----
+                    if (this.isMyTurn) {
+                      const drawBtnW = 100;
+                      const drawBtnH = 40;
+                      const drawBtnX = 15;
+                      const drawBtnY = h * 0.3 + 60;
+
+                      ctx.fillStyle = '#3498DB';
+                      ctx.shadowColor = '#3498DB';
+                      ctx.shadowBlur = 10;
+                      ctx.fillRect(drawBtnX - 3, drawBtnY - 3, drawBtnW + 6, drawBtnH + 6);
+                      ctx.shadowBlur = 0;
+
+                      ctx.fillStyle = '#2980B9';
+                      ctx.fillRect(drawBtnX, drawBtnY, drawBtnW, drawBtnH);
+                      ctx.strokeStyle = '#FFFFFF';
+                      ctx.lineWidth = 2;
+                      ctx.strokeRect(drawBtnX, drawBtnY, drawBtnW, drawBtnH);
+
+                      ctx.fillStyle = '#FFFFFF';
+                      ctx.font = '10px "Press Start 2P", monospace';
+                      ctx.textAlign = 'center';
+                      ctx.textBaseline = 'middle';
+                      ctx.fillText('DRAW', drawBtnX + drawBtnW / 2, drawBtnY + drawBtnH / 2);
+                    }
         }
 
         // ---- UNO call / catch buttons (always drawn when applicable) ----
@@ -610,6 +636,19 @@ export class GameUI {
             }
           }
 
+          // Check if click is on the DRAW button
+          if (this.isMyTurn) {
+            const drawBtnW = 100;
+            const drawBtnH = 40;
+            const drawBtnX = 15;
+            const drawBtnY = h * 0.3 + 60;
+            if (clickX >= drawBtnX && clickX <= drawBtnX + drawBtnW &&
+                clickY >= drawBtnY && clickY <= drawBtnY + drawBtnH) {
+              socketClient.drawCard();
+              return;
+            }
+          }
+
           // Check if click is on the UNO button
           const btnW = 120;
           const btnH = 40;
@@ -669,36 +708,32 @@ export class GameUI {
     }
 
   handleKeyDown(event: KeyboardEvent): void {
-      if (!this.gameState) return;
+        if (!this.gameState) return;
     
-      switch (event.key.toLowerCase()) {
-        case 'd':
-          if (this.isMyTurn) {
-            socketClient.drawCard();
-          }
-          break;
-        case 'u':
-          socketClient.callUno();
-          break;
-        case 'escape':
-          this.selectedCardIndex = -1;
-          this.render();
-          break;
-        case 'arrowleft':
-          if (this.scrollOffset > 0) {
-            this.scrollOffset--;
+        // Check if the chat input is focused — if so, don't process game keys
+        const chatInput = document.getElementById('chat-input') as HTMLInputElement | null;
+        if (chatInput && document.activeElement === chatInput) return;
+    
+        switch (event.key.toLowerCase()) {
+          case 'escape':
+            this.selectedCardIndex = -1;
             this.render();
-          }
-          break;
-        case 'arrowright':
-          const maxOffset = Math.max(0, this.myHand.length - this.maxVisibleCards);
-          if (this.scrollOffset < maxOffset) {
-            this.scrollOffset++;
-            this.render();
-          }
-          break;
+            break;
+          case 'arrowleft':
+            if (this.scrollOffset > 0) {
+              this.scrollOffset--;
+              this.render();
+            }
+            break;
+          case 'arrowright':
+            const maxOffset = Math.max(0, this.myHand.length - this.maxVisibleCards);
+            if (this.scrollOffset < maxOffset) {
+              this.scrollOffset++;
+              this.render();
+            }
+            break;
+        }
       }
-    }
 
   private showColorPicker(cardId: string): void {
       const colors: CardColor[] = ['Red', 'Blue', 'Green', 'Yellow'];
