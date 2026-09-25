@@ -28,10 +28,10 @@ function showScreen(screenId: string): void {
   }
   
   // Stop game loop when leaving game screen
-  if (screenId !== 'game-screen' && gameUI) {
-    gameUI.stop();
-    gameUI = null;
-  }
+    if (screenId !== 'game-screen' && gameUI) {
+      gameUI.destroy();
+      gameUI = null;
+    }
 }
 
 // ===== DOM REFERENCES =====
@@ -236,10 +236,10 @@ socketClient.on('room:returned_to_lobby', (players: any[], scores: Record<string
   isReady = me?.isReady || false;
   currentRoomId = currentRoomId; // keep room id
   // Stop game UI
-  if (gameUI) {
-    gameUI.stop();
-    gameUI = null;
-  }
+    if (gameUI) {
+      gameUI.destroy();
+      gameUI = null;
+    }
   // Update players list
   updatePlayersList(players);
   
@@ -361,7 +361,14 @@ socketClient.on('game:started', (gameState: any) => {
   soundManager.playGameStart();
   
   // Initialize game UI
-  gameUI = new GameUI('game-canvas');
+    // Destroy any previous instance first — a stale GameUI would keep its
+    // click/keydown/socket listeners registered and duplicate every action
+    // (double draws, spurious "Not your turn!" errors) on follow-up games.
+    if (gameUI) {
+      gameUI.destroy();
+      gameUI = null;
+    }
+    gameUI = new GameUI('game-canvas');
   gameUI.setPlayerId(myPlayerId);
   gameUI.updateGameState(gameState, gameState.yourHand || []);
   gameUI.start();

@@ -22,29 +22,35 @@ export class GameUI {
   private cardHeight: number = 100;
   private animationFrame: number = 0;
       private stateErrorMessage: string | null = null;
-      private stateErrorTimer: number = 0;
-      private messageDismissed: boolean = false;
-      // Card horizontal scrolling
-      private scrollOffset: number = 0;
-      private maxVisibleCards: number = 7;
+            private stateErrorTimer: number = 0;
+            private messageDismissed: boolean = false;
+            // Card horizontal scrolling
+            private scrollOffset: number = 0;
+            private maxVisibleCards: number = 7;
+            // Cleanup bookkeeping (see destroy()) — prevents zombie listeners across games
+            private boundResize: () => void = () => this.resizeCanvas();
+            private boundCanvasClick: (e: MouseEvent) => void = (e) => this.handleClick(e);
+            private boundKeyDown: (e: KeyboardEvent) => void = (e) => this.handleKeyDown(e);
+            private socketUnsubscribers: Array<() => void> = [];
+            private destroyed: boolean = false;
 
-  constructor(canvasId: string) {
-    this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('2d')!;
-    this.renderer = new CardRenderer(this.ctx);
+        constructor(canvasId: string) {
+          this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+          this.ctx = this.canvas.getContext('2d')!;
+          this.renderer = new CardRenderer(this.ctx);
     
-    this.resizeCanvas();
-    window.addEventListener('resize', () => this.resizeCanvas());
+          this.resizeCanvas();
+          window.addEventListener('resize', this.boundResize);
     
-    // Setup click handler
-    this.canvas.addEventListener('click', (e) => this.handleClick(e));
+          // Setup click handler
+          this.canvas.addEventListener('click', this.boundCanvasClick);
     
-    // Setup keyboard handler
-    document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+          // Setup keyboard handler
+          document.addEventListener('keydown', this.boundKeyDown);
     
-    // Register socket events
-        this.registerSocketEvents();
-      }
+          // Register socket events
+              this.registerSocketEvents();
+            }
 
       private showError(message: string): void {
         // Flash error message on the canvas
@@ -72,7 +78,11 @@ export class GameUI {
     }
 
   private registerSocketEvents(): void {
-      socketClient.on('game:state_update', (state: any) => {
+        // Capture unsubscribe functions so destroy() can remove these listeners.
+        // socketClient.on() adds callbacks to a persistent Set — if we don't
+        // unsubscribe, old GameUI instances keep reacting to events forever.
+        this.socketUnsubscribers.push(
+          socketClient.on('game:state_update', (state: any) => {
             // Capture previous state for sound detection
             const prevState = this.gameState;
             const prevHandLength = this.myHand.length;
@@ -123,26 +133,28 @@ export class GameUI {
             }
 
             this.render();
-          });
+                      }));
 
-      socketClient.on('game:game_over', (winnerId: string, finalState: GameState) => {
-        this.gameState = finalState;
-        this.render();
-        this.showGameOver(winnerId);
-        // Play win/lose sound
-        if (winnerId === this.myPlayerId) {
-          soundManager.playWin();
-        } else {
-          soundManager.playLose();
-        }
-      });
+                  this.socketUnsubscribers.push(
+                    socketClient.on('game:game_over', (winnerId: string, finalState: GameState) => {
+                      this.gameState = finalState;
+                      this.render();
+                      this.showGameOver(winnerId);
+                      // Play win/lose sound
+                      if (winnerId === this.myPlayerId) {
+                        soundManager.playWin();
+                      } else {
+                        soundManager.playLose();
+                      }
+                    }));
 
-      socketClient.on('game:error', (message: string) => {
-            console.warn('Game error:', message);
-            this.showError(message);
-            soundManager.playError();
-          });
-    }
+                  this.socketUnsubscribers.push(
+                    socketClient.on('game:error', (message: string) => {
+                      console.warn('Game error:', message);
+                      this.showError(message);
+                      soundManager.playError();
+                    }));
+                }
 
   private findMyPlayerIndex(): number {
     if (!this.gameState) return -1;
@@ -837,11 +849,35 @@ export class GameUI {
     }
 
     stop(): void {
-      if (this.animationFrame) {
-        cancelAnimationFrame(this.animationFrame);
-        this.animationFrame = 0;
-      }
-    }
+          if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+            this.animationFrame = 0;
+          }
+        }
+
+        /**
+         * Fully tear down this GameUI instance. Must be called when leaving the
+         * game screen / between games. stop() alone is NOT enough: it leaves the
+         * canvas click, document keydown, window resize and socket listeners
+         * registered, so on the next game a second live instance duplicates every
+         * user action (double draws, spurious "Not your turn!" errors, stacked
+         * modals). destroy() is idempotent — safe to call multiple times.
+         */
+        destroy(): void {
+          if (this.destroyed) return;
+          this.destroyed = true;
+
+          this.stop();
+
+          window.removeEventListener('resize', this.boundResize);
+          this.canvas.removeEventListener('click', this.boundCanvasClick);
+          document.removeEventListener('keydown', this.boundKeyDown);
+
+          for (const unsubscribe of this.socketUnsubscribers) {
+            unsubscribe();
+          }
+          this.socketUnsubscribers = [];
+        }
 
     private showGameOver(winnerId: string): void {
       const isWinner = winnerId === this.myPlayerId;
@@ -874,11 +910,11 @@ export class GameUI {
         cursor: pointer; margin-top: 10px;
       `;
       replayBtn.addEventListener('click', () => {
-                    soundManager.playButtonClick();
-                    document.body.removeChild(modal);
-                    this.stop();
-                    socketClient.returnToLobby();
-                  });
+                          soundManager.playButtonClick();
+                          document.body.removeChild(modal);
+                          this.destroy(); // full teardown, not just stop()
+                          socketClient.returnToLobby();
+                        });
       container.appendChild(replayBtn);
 
       modal.appendChild(container);
