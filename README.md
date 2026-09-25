@@ -102,14 +102,14 @@ Each color (Red, Blue, Green, Yellow) has one 0 and two of each 1-9.
 ## Rules
 
 ### Initial Card Handling
+Only a **Number** card may start the game. If the revealed card is an action or
+wild card (Skip, Reverse, Draw Two, Wild, Wild Draw Four), it is shuffled back
+into the draw pile and another card is revealed, until a Number card appears.
+
 | First Card | Effect |
 |------------|--------|
 | Number | Normal start, player to dealer's left goes first |
-| Skip | First player skipped, second starts |
-| Reverse | Direction reversed, dealer starts |
-| Draw Two | First player draws 2 and loses turn |
-| Wild | First player chooses starting color |
-| Wild Draw Four | Returned to deck, another card revealed |
+| Skip, Reverse, Draw Two, Wild, Wild Draw Four | Not allowed as the first card — reshuffled and replaced by a Number card |
 
 ### UNO Call
 - Call UNO (press U) when you play down to 1 card
@@ -161,6 +161,7 @@ projectuno/
 | Initial discard not handled | Full first-card logic for all types |
 | UNO penalty missing | unoPenaltyWindow + catchUno() + socket handler |
 | Draw-then-play restriction | drawnCardId tracking enforced in playCard |
+| Only wild cards blocked from starting | All non-number cards (Skip, Reverse, Draw Two, Wild, Wild Draw Four) are reshuffled so only a Number card starts the game |
 
 ## Tech Stack
 - Frontend: TypeScript, Vite, HTML5 Canvas, Socket.IO Client

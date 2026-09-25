@@ -25,75 +25,41 @@ export class UnoGame {
       hands.push(hand);
     }
 
-    // Create initial discard pile (reveal top card of draw pile)
-            let firstCard: Card | undefined;
-            let wildRetries = 0;
-    
-            // If we draw a Wild or Wild Draw Four as first card, return it to deck and retry
-            // (per official UNO rules, wild cards cannot start the game)
-            do {
-              firstCard = deck.pop();
-              if (firstCard && (firstCard.type === 'Wild' || firstCard.type === 'Wild Draw Four')) {
-                // Wild/Wild Draw Four cannot be the initial discard; shuffle it back
-                deck = shuffleDeck([...deck, firstCard]);
-                wildRetries++;
-                firstCard = undefined;
-                if (wildRetries > 5) break; // Safety
-              }
-            } while (!firstCard);
-    
-        if (!firstCard) {
-          firstCard = deck.pop() || { id: 'fallback', type: 'Number', color: 'Red', value: 0 };
-        }
+                // Initial discard: reveal the top card of the draw pile.
+    let firstCard: Card | undefined;
+    const setAsideCards: Card[] = [];
 
-        const discardPile: Card[] = [firstCard];
-        let initialColor: CardColor = firstCard.color as CardColor;
-        let startingPlayerIndex = 0; // Player to the left of dealer (index 0)
-        let initialDirection: 1 | -1 = 1;
-        let initialMessage = 'Game started!';
+    // Per official UNO rules, only Number cards may start the game: action cards
+    // (Skip, Reverse, Draw Two) and wild cards (Wild, Wild Draw Four) are rejected
+    // as the initial discard and shuffled back into the draw pile.
+    while (deck.length > 0) {
+      const candidate = deck.pop()!;
+      if (candidate.type === 'Number') {
+        firstCard = candidate;
+        break;
+      }
+      // Non-number card - set it aside to be shuffled back into the draw pile.
+      setAsideCards.push(candidate);
+    }
 
-        // Apply first card effects
-        switch (firstCard.type) {
-          case 'Skip': {
-            // Skip the first player (player to left of dealer)
-            startingPlayerIndex = 1 % playerNames.length;
-            initialMessage = 'First card is Skip! First player skipped.';
-            break;
-          }
-          case 'Reverse': {
-            // Reverse direction, dealer starts
-            initialDirection = -1;
-            startingPlayerIndex = 0; // Dealer (index 0) starts
-            initialMessage = 'First card is Reverse! Direction reversed, dealer starts.';
-            break;
-          }
-          case 'Draw Two': {
-                  // First player draws 2 and loses turn
-                  const firstPlayerHand = hands[0];
-                  for (let i = 0; i < 2; i++) {
-                    const drawn = deck.pop();
-                    if (drawn) firstPlayerHand.push(drawn);
-                  }
-                  // Next player (index 1) starts
-                  startingPlayerIndex = 1 % playerNames.length;
-                  initialMessage = 'First card is Draw Two! First player drew 2 and is skipped.';
-                  break;
-                }
-          case 'Wild': {
-            // Player to left of dealer chooses starting color
-            initialColor = 'None' as CardColor;
-            initialMessage = 'First card is Wild! Choose a starting color.';
-            // We need to prompt for color choice. Set waitingForColorChoice.
-            // Since constructor can't wait for input, set initial color to None
-            // and the first player will need to choose via the UI
-            break;
-          }
-          case 'Wild Draw Four': {
-            // Should not happen due to the retry loop above, but handle as fallback
-            initialMessage = 'First card is Wild Draw Four! (Should have been reshuffled)';
-            break;
-          }
-        }
+    // Return the rejected non-number cards to the draw pile in random order.
+    if (setAsideCards.length > 0) {
+      deck = shuffleDeck([...deck, ...setAsideCards]);
+    }
+
+    if (firstCard === undefined) {
+      // Safety fallback (draw pile exhausted): guarantee a Number card starts the game.
+      firstCard = { id: 'fallback', type: 'Number', color: 'Red', value: 0 };
+    }
+
+    // Only Number cards can start the game (enforced above), so no special
+    // first-card effect applies. initialColor is the Number card's color.
+    const discardPile: Card[] = [firstCard];
+    let initialColor: CardColor = firstCard.color as CardColor;
+    let startingPlayerIndex = 0; // Player to the left of dealer (index 0)
+    let initialDirection: 1 | -1 = 1;
+    let initialMessage = 'Game started!';
+
 
     this.state = {
           players: playerNames.map((p: { id: string; name: string }, i: number) => ({
@@ -114,7 +80,8 @@ export class UnoGame {
           unoCalled: false,
                 unoPenaltyWindow: null,
                 drawnCardId: null,
-                waitingForColorChoice: firstCard.type === 'Wild',
+                // First card is always a Number card, so no color choice is pending.
+                waitingForColorChoice: false,
           pendingDraw: 0,
           message: initialMessage
         };
