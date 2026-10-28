@@ -8,7 +8,7 @@ export class UnoGame {
   private state: GameState;
   private playerIds: string[];
 
-  constructor(playerNames: { id: string; name: string }[]) {
+  constructor(playerNames: { id: string; name: string }[], startingPlayerIndex = 0) {
     this.playerIds = playerNames.map((p: { id: string; name: string }) => p.id);
     
     // Create and shuffle deck
@@ -56,7 +56,12 @@ export class UnoGame {
     // first-card effect applies. initialColor is the Number card's color.
     const discardPile: Card[] = [firstCard];
     let initialColor: CardColor = firstCard.color as CardColor;
-    let startingPlayerIndex = 0; // Player to the left of dealer (index 0)
+    // Rotate who starts each game instead of always letting index 0 (the room
+    // creator/admin) take the first turn. Normalize to a valid index in range.
+    const numPlayers = playerNames.length;
+    const normalizedStart = numPlayers > 0
+      ? ((startingPlayerIndex % numPlayers) + numPlayers) % numPlayers
+      : 0;
     let initialDirection: 1 | -1 = 1;
     let initialMessage = 'Game started!';
 
@@ -69,7 +74,7 @@ export class UnoGame {
             isHuman: true,
             isReady: true
           })),
-          currentPlayerIndex: startingPlayerIndex,
+          currentPlayerIndex: normalizedStart,
           direction: initialDirection,
           drawPile: deck,
           discardPile: discardPile,

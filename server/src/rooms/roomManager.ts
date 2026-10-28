@@ -109,7 +109,20 @@ export class RoomManager {
 
     // Start the game - store the instance so it persists across actions
     const playerList = room.players.map((p: PlayerRoomInfo) => ({ id: p.id, name: p.name }));
-    const game = new UnoGame(playerList);
+
+    // Rotate the first turn between players: the next game starts with the player
+    // after whoever started the previous one (falls back to the first player if
+    // that player has since left or no game has been played yet).
+    let startingPlayerIndex = 0;
+    if (room.lastStartingPlayerId) {
+      const lastIndex = playerList.findIndex((p: { id: string; name: string }) => p.id === room.lastStartingPlayerId);
+      if (lastIndex !== -1) {
+        startingPlayerIndex = (lastIndex + 1) % playerList.length;
+      }
+    }
+    room.lastStartingPlayerId = playerList[startingPlayerIndex].id;
+
+    const game = new UnoGame(playerList, startingPlayerIndex);
     this.gameInstances.set(roomId, game);
     room.gameState = game.getState();
     room.phase = 'game';

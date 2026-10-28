@@ -45,6 +45,7 @@ export interface Room {
   gameState: GameState | null;
   phase: 'lobby' | 'game';
   scores: Record<string, number>;
+  lastStartingPlayerId?: string | null; // Tracks who started the previous game so the first turn rotates
 }
 
 export interface PlayerRoomInfo {

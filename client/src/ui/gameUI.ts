@@ -329,11 +329,19 @@ export class GameUI {
     const w = this.screenWidth;
     const currentPlayerIndex = this.gameState.currentPlayerIndex;
 
-    // Find opponent
-    const opponent = this.gameState.players.find(p => p.id !== this.myPlayerId);
+    // Show the opponent whose turn it is. This keeps the single top slot focused
+    // on the player who is currently relevant instead of always the first
+    // non-local player in the seating order. When it is the local player's turn
+    // (or no other player is active) fall back to the first opponent so the slot
+    // is never empty.
+    const players = this.gameState.players;
+    const activePlayer = players[currentPlayerIndex];
+    const opponent = (activePlayer && activePlayer.id !== this.myPlayerId)
+      ? activePlayer
+      : players.find(p => p.id !== this.myPlayerId);
     if (!opponent) return;
 
-    const oppIndex = this.gameState.players.findIndex(p => p.id === opponent.id);
+    const oppIndex = players.findIndex(p => p.id === opponent.id);
     const isOpponentTurn = oppIndex === currentPlayerIndex;
 
     // Opponent card count display (top)
